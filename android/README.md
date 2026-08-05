@@ -13,19 +13,39 @@ moderated, on-device usability comparison between them with the same real
 testers, which is the actual blocker (per the old project's own status
 report) to deciding which one wins.
 
+## Scope for this build
+
+- **In:** sign-in, onboarding, the feed itself (radio-timeline or
+  card-deck), recording/posting a memo, reporting a memo, seeing why your
+  own memo was moderated and appealing it, a minimal profile (your own
+  username + your own posted memos, sign out).
+- **Out:** direct messages (E2EE/libsignal stays backend-only for now — no
+  DM screen in this build), and the moderator's review queue. Reports get
+  submitted from the app, but reviewing them happens outside it for
+  now — a small internal tool or a direct query, not a dedicated
+  in-app admin screen. That's a deliberate scope cut, not an oversight: at
+  closed-beta scale, report volume doesn't yet justify building a second,
+  admin-facing UI inside a consumer app. Reporting and appeal *do* ship —
+  those are non-negotiable #8, not optional.
+
 ## Modules
 
 - **`:core`** — API client (Retrofit, against the backend's cursor-paginated
-  feed/auth/moderation/DM endpoints), Firebase Auth session, Media3 playback
-  session, repository layer for likes/skips/comments. Neither UI shell talks
-  to the network or the playback engine directly.
+  feed/auth/moderation endpoints), Firebase Auth session, Media3 playback
+  session, repository layer for likes/skips/comments/reports. Neither UI
+  shell talks to the network or the playback engine directly.
 - **`:feature-radio`** — the sequential radio-timeline screen (Compose).
 - **`:feature-carddeck`** — the swipeable card-deck screen (Compose): the
   gesture vocabulary, the onboarding flow that drills it, and the on-device
   narrator (Android's native `TextToSpeech` — no server-side TTS).
+- **`:feature-account`** — sign-in, minimal profile, report + appeal
+  screens. These don't belong to either feed model and shouldn't be
+  duplicated in both or bias the comparison between them, so they get
+  their own module rather than living in `:feature-radio` or
+  `:feature-carddeck`.
 - **`:app`** — thin shell wiring the above together, plus a moderator-only
-  toggle to switch which screen loads, so a tester can try both without
-  separate installs.
+  toggle to switch which feed screen loads, so a tester can try both
+  without separate installs.
 
 ## Tech stack
 
