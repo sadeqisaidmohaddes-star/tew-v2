@@ -9,6 +9,16 @@ already proved out:
 - **`prod`** — production. Only reached by promoting already-verified work
   from `dev`. Never committed to directly.
 
+This is enforced by GitHub, not just documented: both branches block direct
+pushes and force pushes, require a passing CI run, and require an approving
+review from the `CODEOWNERS` reviewer (`@sadeqisaidmohaddes-star`) before a
+PR can merge — `prod` enforces this even for the repo owner/admin. Because
+GitHub doesn't allow a PR author to approve their own PR, this only works
+one direction: **Taha opens the PR, Said reviews and approves it.** Nothing
+merges to `prod` without Said explicitly signing off — that's the actual
+mechanism behind "don't promote to prod unless told it's ready," not just a
+written rule.
+
 ## Day-to-day cycle
 
 1. Branch off `dev` for the change (`feature/...`, `fix/...`).
