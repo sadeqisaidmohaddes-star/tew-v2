@@ -1,1 +1,24 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+
+        <!--
+            Spike-only screen (see spike/TalkBackPassthroughSpikeActivity.kt and
+            SPIKE.md). Deliberately has no LAUNCHER intent-filter, so it adds no
+            icon and no entry point to the real app; it is started explicitly
+            over adb during the on-device TalkBack pass.
+
+            exported="true" is what makes that adb start possible from the shell
+            user. It is safe here only because the screen reads and writes
+            nothing — no network, no storage, no :core dependency, no user data —
+            but it must be deleted along with the rest of the spike once the
+            passthrough question is settled. Do not ship a release with it.
+        -->
+        <activity
+            android:name=".spike.TalkBackPassthroughSpikeActivity"
+            android:exported="true"
+            android:label="TEW gesture spike" />
+
+    </application>
+
+</manifest>
