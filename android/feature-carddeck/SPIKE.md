@@ -33,20 +33,52 @@ Two audible routes are timed separately on purpose. A short earcon and a spoken
 word are not interchangeable, and the 100ms rule in `IMPLEMENTATION.md` is far
 more likely to be satisfiable by the first than the second.
 
-## Running it
+## Getting it onto a phone
 
-Build and install the debug APK:
+### Without a development machine
+
+Every CI run on `dev` leaves an installable debug APK behind, so no toolchain
+is needed:
+
+1. Open the repo's **Actions** tab, pick the most recent `CI` run on `dev`.
+2. Download the **`tew-debug-apk`** artifact from the bottom of the run page.
+3. Unzip it (GitHub wraps artifacts in a `.zip`) and install `app-debug.apk`.
+   Android will ask permission to install from an unknown source — this is a
+   debug build, not a Play Store one, so that prompt is expected.
+
+Two frictions worth knowing before relying on this: downloading an Actions
+artifact requires being **signed in to GitHub**, even though the repo is
+public, and the download is a `.zip` rather than the APK directly. Both are
+awkward on a phone with a screen reader. If that proves to be a real barrier
+rather than a nuisance, attaching the APK to a GitHub prerelease would make it
+a one-tap public download — that deviates from `GITHUB_WORKFLOW.md`, which
+reserves releases for semver tags on `prod`, so it is Said's call rather than
+something to do quietly.
+
+Artifacts are kept for 30 days. Past that, re-run the workflow from the
+Actions tab (**Run workflow**) to get a fresh one.
+
+### With a development machine
 
 ```
 cd android
 ./gradlew :app:installDebug
 ```
 
-The spike has no launcher icon by design. Start it explicitly:
+### Starting the spike
+
+The spike has no launcher icon by design, so it does not appear in the app
+drawer. With adb:
 
 ```
 adb shell am start -n org.teww.tew/org.teww.tew.feature.carddeck.spike.TalkBackPassthroughSpikeActivity
 ```
+
+Without adb, it needs a launcher shortcut — an activity-launcher app from the
+Play Store can start it by name. If that turns out to be the blocker that
+stops this spike being run, say so: giving the spike a temporary launcher
+icon is a two-line change and worth doing rather than leaving the question
+unanswered.
 
 ### The protocol
 
