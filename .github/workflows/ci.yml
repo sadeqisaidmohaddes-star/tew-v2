@@ -4,6 +4,16 @@ on:
   pull_request:
     branches: [dev, prod]
 
+  # Also run on merges into dev, so every dev commit leaves behind an
+  # installable debug APK. Without this, CI only ever runs pre-merge and
+  # there is no build of dev itself for a tester to download.
+  push:
+    branches: [dev]
+
+  # Lets a build be re-run on demand from the Actions tab — e.g. when an
+  # artifact has aged out and a tester needs a fresh APK.
+  workflow_dispatch:
+
 jobs:
   backend:
     name: backend
@@ -83,6 +93,24 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew build test lint --no-daemon
+
+      # The debug APK is what lets someone test on a real phone without a
+      # development machine — which is the difference between the TalkBack
+      # spike being runnable by the people it is meant to serve, and it
+      # sitting unrun because it needs adb. Debug-signed only: release
+      # signing is still undecided (see STATE.md), so this is for testing,
+      # never for distribution.
+      - name: Upload debug APK
+        if: steps.check.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tew-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          # Fail loudly rather than leaving an empty artifact behind: a
+          # tester finding nothing to download reads as "the build is
+          # broken", and they would be right.
+          if-no-files-found: error
+          retention-days: 30
 
       - name: No Android project yet
         if: steps.check.outputs.exists == 'false'

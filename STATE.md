@@ -42,7 +42,12 @@ Last updated: 2026-08-08
 - CI (`.github/workflows/ci.yml`) runs a `backend` and an `android` job on
   every PR into `dev`/`prod`. `backend` still no-ops (no
   `backend/package.json` yet). `android` now runs for real
-  (`./gradlew build test lint`) since `android/gradlew` exists.
+  (`./gradlew build test lint`) since `android/gradlew` exists. CI also
+  runs on merges into `dev` and on manual dispatch, and publishes the
+  **debug APK as a `tew-debug-apk` artifact** (30-day retention) so the
+  spike can be installed on a phone without a development machine —
+  `feature-carddeck/SPIKE.md` has the steps and the two frictions
+  (GitHub sign-in required, artifact arrives as a `.zip`).
 - Taha-Mahmoodi has collaborator (push) access to this repo.
 
 ## Deliberately deferred, not forgotten
@@ -57,7 +62,11 @@ Last updated: 2026-08-08
 
 ## Blocked on
 
-- **The spike's actual answer.** The code is ready; running it is not
+- **The spike's actual answer.** The code is merged into `dev` (PR #7,
+  approved by Said with three conditions: no `feature-carddeck` code
+  built on the raw-touch assumption until the run happens, the run is the
+  next thing rather than something that drifts, and the `Blocked on` and
+  `SPIKE.md` notes stay until a verdict is recorded). Running it is not
   something the build environment can do. Claude Code's sandbox has no
   hardware virtualisation (`/dev/kvm` absent, no `vmx`/`svm` in
   `/proc/cpuinfo`), so no Android emulator — and TalkBack ships with
