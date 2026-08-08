@@ -67,18 +67,19 @@ cd android
 
 ### Starting the spike
 
-The spike has no launcher icon by design, so it does not appear in the app
-drawer. With adb:
+Debug builds put **TEW gesture spike** in the app drawer as its own icon,
+next to the TEW app itself. Tap it. That is the whole step — no adb, no
+computer.
+
+The icon comes from `src/debug/AndroidManifest.xml`, so it exists only in
+debug builds and cannot reach a release. Release builds keep the activity
+declared but unreachable from the launcher.
+
+If you would rather start it from a machine that already has adb:
 
 ```
 adb shell am start -n org.teww.tew/org.teww.tew.feature.carddeck.spike.TalkBackPassthroughSpikeActivity
 ```
-
-Without adb, it needs a launcher shortcut — an activity-launcher app from the
-Play Store can start it by name. If that turns out to be the blocker that
-stops this spike being run, say so: giving the spike a temporary launcher
-icon is a two-line change and worth doing rather than leaving the question
-unanswered.
 
 ### The protocol
 
