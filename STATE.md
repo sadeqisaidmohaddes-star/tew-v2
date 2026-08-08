@@ -37,10 +37,11 @@ Last updated: 2026-08-08
 
 - **Firebase project / Google Sign-In** — holding off until the prototype
   is ready, per Taha. No account chosen yet.
-- **Postgres hosting** — `lucifers-vps` (in local SSH config) is Taha's
-  personal VPS, **not** for this project. Said's projects have a separate
-  VPS; connection details not yet gathered. Get these when backend
-  implementation actually starts, not before.
+- **Postgres hosting** — self-hosted on Said's VPS (Ubuntu + aaPanel,
+  already running other sites/apps). That VPS is managed by another
+  session with full access details — not `lucifers-vps` (Taha's personal
+  box, unrelated to this project). No provisioning done yet, but no
+  blocker on getting there.
 
 ## Not started yet
 
@@ -57,5 +58,3 @@ Last updated: 2026-08-08
 
 Start with the gesture spike (`IMPLEMENTATION.md` → Build order, step 1),
 built inside `:feature-carddeck` on a new branch, same PR flow as always.
-When picking up backend work, first get Said's VPS connection details
-(above) before provisioning anything.
