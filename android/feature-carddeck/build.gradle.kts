@@ -23,6 +23,13 @@ android {
 dependencies {
     implementation(project(":core"))
 
+    // activity-compose and core-ktx are here for the TalkBack passthrough
+    // spike's throwaway Activity (see SPIKE.md). Revisit when the spike is
+    // deleted — the real card-deck screen is a Composable hosted by :app and
+    // may not need its own Activity.
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
+
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.graphics)
