@@ -15,6 +15,18 @@ Last updated: 2026-08-08
   currently has placeholder code only — no real feature logic yet.
   `./gradlew build --no-daemon` passes locally (all modules compile,
   lint clean, debug APK produced) and in CI.
+- **TalkBack/gesture-passthrough spike: written, builds, NOT yet run on a
+  device.** Lives in `:feature-carddeck` under `spike/`, protocol in
+  `feature-carddeck/SPIKE.md`. Tests the mechanism `android/README.md`
+  proposes (gesture surface with semantics cleared + raw touch dispatch),
+  records every touch/hover reaching the app, and times earcon and speech
+  latency separately. 15 JVM unit tests cover the verdict and latency
+  logic — i.e. how the result is read, **not** the result.
+  `./gradlew build test lint` verified locally against a real Android SDK
+  (platform 36 / build-tools 36, installed into the sandbox): green, lint
+  clean, debug APK produced, spike activity present in the merged
+  manifest. The empirical answer needs a phone with TalkBack on; see
+  "Blocked on" below.
 - Governance docs written: `BRIEF.md`, `IMPLEMENTATION.md`,
   `HANDLING_PROTOCOLS.md`, `GITHUB_WORKFLOW.md`, `CLAUDE.md`, this file.
 - Repo is **public** (deliberate — required for branch protection on the
@@ -43,18 +55,44 @@ Last updated: 2026-08-08
   box, unrelated to this project). No provisioning done yet, but no
   blocker on getting there.
 
+## Blocked on
+
+- **The spike's actual answer.** The code is ready; running it is not
+  something the build environment can do. Claude Code's sandbox has no
+  hardware virtualisation (`/dev/kvm` absent, no `vmx`/`svm` in
+  `/proc/cpuinfo`), so no Android emulator — and TalkBack ships with
+  Google Play services, so even a working emulator needs a Google APIs
+  image. `HANDLING_PROTOCOLS.md` already forbids treating "it built" as
+  "it works". **Someone with an Android phone needs to run the three
+  passes in `feature-carddeck/SPIKE.md` and report the verdict.** Until
+  that happens the card-deck direction is unvalidated, and the whole
+  question of whether `:feature-carddeck` is buildable as designed
+  stays open.
+- Same constraint blocks the under-100ms gesture-to-audio rule. Nothing
+  measured yet. The in-app numbers, once collected, are lower bounds
+  only — the audio output path past the API call is invisible from
+  inside the process, so certifying the rule needs external measurement
+  on the budget device `IMPLEMENTATION.md` names.
+
 ## Not started yet
 
-- The TalkBack/gesture-passthrough spike (`android/README.md`) — the
-  recommended first real implementation step, now that the scaffold
-  exists to build it in.
-- Real logic in `:core` (API client, Firebase Auth session, Media3
-  playback, repository layer) — module exists, currently a stub.
+- Real logic in `:core` (API client, auth session, Media3 playback,
+  repository layer) — module exists, currently a stub. Deliberately not
+  started in the same session as the spike: `IMPLEMENTATION.md`'s build
+  order puts it second, and the spike's result may change what the
+  feature modules need from it.
 - Backend implementation (currently design-doc only).
 - Release-signing keystore for `assembleRelease`/`bundleRelease` — not yet
   decided, will block the first real GitHub Release.
 
 ## Next step
 
-Start with the gesture spike (`IMPLEMENTATION.md` → Build order, step 1),
-built inside `:feature-carddeck` on a new branch, same PR flow as always.
+**Run the spike on a real phone** — `feature-carddeck/SPIKE.md`, three
+passes, ~15 minutes. That result decides whether the card deck is built on
+raw touch or on semantic accessibility actions, and it gates step 2 of
+`IMPLEMENTATION.md`'s build order.
+
+`:core` was explicitly gated behind a working spike for this session, so it
+was not started. Strictly by dependency it could run in parallel — `:core`
+does not depend on the spike's outcome, only the feature modules do — but
+that is Said's call to make, not an assumption to act on.
