@@ -6,6 +6,7 @@ import org.teww.tew.core.auth.StubAuthSession
 import org.teww.tew.core.playback.FeedCommandBus
 import org.teww.tew.core.playback.Media3PlaybackSession
 import org.teww.tew.core.playback.PlaybackSession
+import org.teww.tew.core.record.MemoRecorder
 import org.teww.tew.core.voice.VoiceCommandListener
 import org.teww.tew.core.repo.FeedRepository
 import org.teww.tew.core.repo.InMemoryFeedRepository
@@ -36,6 +37,8 @@ import org.teww.tew.core.repo.ModerationRepository
  */
 class TewContainer(context: Context) {
 
+    private val appContext = context.applicationContext
+
     val authSession: AuthSession = StubAuthSession()
 
     val feedRepository: FeedRepository = InMemoryFeedRepository()
@@ -61,6 +64,14 @@ class TewContainer(context: Context) {
      * of non-negotiable #5.
      */
     val playbackSession: PlaybackSession = Media3PlaybackSession(context, commandBus)
+
+    /**
+     * A new recorder per composer, not a shared one. MediaRecorder is a
+     * single-use state machine — reusing one across screens is how a
+     * half-released recorder turns into a screen that silently fails to
+     * record, which is this app's worst failure mode.
+     */
+    fun newRecorder(): MemoRecorder = MemoRecorder(appContext)
 
     fun release() {
         playbackSession.release()

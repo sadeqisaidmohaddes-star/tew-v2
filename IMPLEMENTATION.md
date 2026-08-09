@@ -47,6 +47,11 @@ tew-v2/
     ├── feature-account/    (:feature-account — sign-in, minimal profile,
     │                        report + appeal. Shared by both feed models,
     │                        doesn't belong to either.)
+    ├── feature-record/     (:feature-record — recording and posting a
+    │                        memo, and recording a voice reply. Same
+    │                        reasoning as :feature-account — both feed
+    │                        models need it, neither owns it. The capture
+    │                        itself lives in :core.)
     └── app/                (:app — thin shell, DI wiring, the
                               moderator-only screen-toggle for the
                               usability test)
