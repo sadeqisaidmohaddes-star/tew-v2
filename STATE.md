@@ -1,107 +1,103 @@
 # STATE
 
-Last updated: 2026-08-08
+Last updated: 2026-08-09
 
 ## Where things actually are
 
-- Backend: still design stage only. No implementation code exists yet
-  beyond `backend/README.md`.
-- Android: **scaffold implemented and merged** (PR #3). Real Gradle
-  project now exists at `android/` with 5 modules (`:app`, `:core`,
-  `:feature-radio`, `:feature-carddeck`, `:feature-account`) matching
-  `android/README.md`'s design. AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10
-  (AGP's built-in Kotlin support — no separate `kotlin-android` plugin),
-  Compose BOM 2026.06.01, minSdk 26 / compileSdk 36 / JDK 17. Each module
-  currently has placeholder code only — no real feature logic yet.
-  `./gradlew build --no-daemon` passes locally (all modules compile,
-  lint clean, debug APK produced) and in CI.
-- **TalkBack/gesture-passthrough spike: written, builds, NOT yet run on a
-  device.** Lives in `:feature-carddeck` under `spike/`, protocol in
-  `feature-carddeck/SPIKE.md`. Tests the mechanism `android/README.md`
-  proposes (gesture surface with semantics cleared + raw touch dispatch),
-  records every touch/hover reaching the app, and times earcon and speech
-  latency separately. 15 JVM unit tests cover the verdict and latency
-  logic — i.e. how the result is read, **not** the result.
-  `./gradlew build test lint` verified locally against a real Android SDK
-  (platform 36 / build-tools 36, installed into the sandbox): green, lint
-  clean, debug APK produced, spike activity present in the merged
-  manifest. The empirical answer needs a phone with TalkBack on; see
-  "Blocked on" below.
-- Governance docs written: `BRIEF.md`, `IMPLEMENTATION.md`,
-  `HANDLING_PROTOCOLS.md`, `GITHUB_WORKFLOW.md`, `CLAUDE.md`, this file.
-- Repo is **public** (deliberate — required for branch protection on the
-  free GitHub plan; can revisit later).
-- `dev` (default) and `prod` branches exist and are both protected: no
-  direct/force push, no deletion, required passing CI, required approving
-  review from `CODEOWNERS` (`@sadeqisaidmohaddes-star`) — `prod` enforces
-  this even for the repo admin. Because a PR author can't approve their
-  own PR, the only working flow is **Taha opens the PR, Said reviews and
-  approves it**. Proven working end to end for docs (PR #1, #2) and now
-  for real code (PR #3, including the first genuine `android` CI run —
-  passed in 3m53s, not a no-op).
-- CI (`.github/workflows/ci.yml`) runs a `backend` and an `android` job on
-  every PR into `dev`/`prod`. `backend` still no-ops (no
-  `backend/package.json` yet). `android` now runs for real
-  (`./gradlew build test lint`) since `android/gradlew` exists. CI also
-  runs on merges into `dev` and on manual dispatch, and publishes the
-  **debug APK as a `tew-debug-apk` artifact** (30-day retention) so the
-  spike can be installed on a phone without a development machine —
-  `feature-carddeck/SPIKE.md` has the steps and the two frictions
-  (GitHub sign-in required, artifact arrives as a `.zip`).
-- Taha-Mahmoodi has collaborator (push) access to this repo.
+Android: **all five modules implemented.** `IMPLEMENTATION.md`'s build order
+is complete — spike, `:core`, the three feature modules, `:app` wiring.
+The app builds, installs, and runs end to end against in-memory fakes.
 
-## Deliberately deferred, not forgotten
+| Module | State |
+| --- | --- |
+| `:core` | API client (Retrofit 3 + kotlinx-serialization), `AuthSession` interface + stub, Media3 playback session, repository layer, in-memory fakes |
+| `:feature-account` | Sign-in, profile, report, appeal |
+| `:feature-radio` | Sequential timeline, auto-advance on completion, prefetch, explicit end-of-stream |
+| `:feature-carddeck` | Card deck, onboarding, on-device narrator, **plus** the unrun TalkBack spike |
+| `:app` | Hand-rolled DI container, `when`-based navigation, moderator feed toggle |
 
-- **Firebase project / Google Sign-In** — holding off until the prototype
-  is ready, per Taha. No account chosen yet.
-- **Postgres hosting** — self-hosted on Said's VPS (Ubuntu + aaPanel,
-  already running other sites/apps). That VPS is managed by another
-  session with full access details — not `lucifers-vps` (Taha's personal
-  box, unrelated to this project). No provisioning done yet, but no
-  blocker on getting there.
+Toolchain unchanged: AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10, Compose BOM
+2026.06.01, minSdk 26 / compileSdk 36 / JDK 17.
+
+- Governance docs: `BRIEF.md`, `IMPLEMENTATION.md`, `HANDLING_PROTOCOLS.md`,
+  `GITHUB_WORKFLOW.md`, `CLAUDE.md`, this file.
+- Repo is **public** (deliberate — branch protection on the free plan).
+- `dev` (default) and `prod` are protected: no direct/force push, required
+  CI, required `CODEOWNERS` review (`@sadeqisaidmohaddes-star`). `prod`
+  enforces even for admins.
+- CI runs `backend` and `android` jobs on PRs into `dev`/`prod`, plus on
+  merges into `dev` and manual dispatch, and publishes the debug APK as a
+  **`tew-debug-apk`** artifact (30-day retention) so a tester needs no
+  toolchain. `backend` still no-ops — no `backend/package.json`.
 
 ## Blocked on
 
-- **The spike's actual answer.** The code is merged into `dev` (PR #7,
-  approved by Said with three conditions: no `feature-carddeck` code
-  built on the raw-touch assumption until the run happens, the run is the
-  next thing rather than something that drifts, and the `Blocked on` and
-  `SPIKE.md` notes stay until a verdict is recorded). Running it is not
-  something the build environment can do. Claude Code's sandbox has no
-  hardware virtualisation (`/dev/kvm` absent, no `vmx`/`svm` in
-  `/proc/cpuinfo`), so no Android emulator — and TalkBack ships with
-  Google Play services, so even a working emulator needs a Google APIs
-  image. `HANDLING_PROTOCOLS.md` already forbids treating "it built" as
-  "it works". **Someone with an Android phone needs to run the three
-  passes in `feature-carddeck/SPIKE.md` and report the verdict.** Until
-  that happens the card-deck direction is unvalidated, and the whole
-  question of whether `:feature-carddeck` is buildable as designed
-  stays open.
-- Same constraint blocks the under-100ms gesture-to-audio rule. Nothing
-  measured yet. The in-app numbers, once collected, are lower bounds
-  only — the audio output path past the API call is invisible from
-  inside the process, so certifying the rule needs external measurement
-  on the budget device `IMPLEMENTATION.md` names.
+- **The TalkBack spike has still not been run.** Merged in PR #7, ready to
+  install, never executed with TalkBack on. No emulator is possible in the
+  build sandbox (`/dev/kvm` absent, no `vmx`/`svm`), and TalkBack ships with
+  Google Play services. **Someone with an Android phone needs to run the
+  three passes in `feature-carddeck/SPIKE.md`.** Debug builds now show a
+  "TEW gesture spike" launcher icon, so this is a tap, not an adb command.
+- **Nothing has been seen running.** `HANDLING_PROTOCOLS.md` is explicit that
+  a change to a feature module isn't done until it's been seen running once,
+  for real. That has not happened for any screen in this build. Everything
+  below is "compiles and is unit-tested", not "works".
+- **No latency measured** against the under-100ms rule, for the same reason.
 
-## Not started yet
+## Known gaps in the MVP — deliberate, not forgotten
 
-- Real logic in `:core` (API client, auth session, Media3 playback,
-  repository layer) — module exists, currently a stub. Deliberately not
-  started in the same session as the spike: `IMPLEMENTATION.md`'s build
-  order puts it second, and the spike's result may change what the
-  feature modules need from it.
-- Backend implementation (currently design-doc only).
-- Release-signing keystore for `assembleRelease`/`bundleRelease` — not yet
-  decided, will block the first real GitHub Release.
+- **Route coverage is 2 of 3.** Non-negotiable #5 wants media controls, voice,
+  and screen-reader menu. Built: on-screen controls, and custom accessibility
+  actions surfaced in TalkBack's own menu. **Not built: hardware/notification
+  media controls, and voice control.** This is the single largest gap and
+  needs a scope decision. Media buttons need a `MediaSession` in `:core`;
+  voice needs a recogniser and an always-listening decision.
+- **No recording UI.** `android/README.md` scopes "recording/posting a memo"
+  into this build. `:core` has `postMemo`/`postComment` and the repositories
+  implement them, but there is no capture screen, so the reply buttons are
+  wired to nothing. Reporting and appeal — the non-negotiable #8 parts — do
+  work.
+- **The card deck does not depend on the spike's answer.** Custom
+  accessibility actions are the primary route; swipes are an enhancement for
+  non-screen-reader users. If the spike fails, nothing needs rewriting. If it
+  passes, swipes become a third route — an addition, not a redesign.
+
+## Deliberately deferred, not forgotten
+
+- **Firebase project / Google Sign-In** — no account chosen. `StubAuthSession`
+  satisfies the `AuthSession` interface in the meantime. Swapping is two lines
+  in `app/TewContainer.kt` and no feature-module change.
+- **Backend** — design-stage. `core/API_CONTRACT.md` is the Android client's
+  **proposal**, not an agreed contract, with four open questions listed for
+  whoever writes the backend. In-memory fakes stand in so the app runs.
+- **Postgres hosting** — self-hosted on Said's VPS, managed by another
+  session. No provisioning done, no blocker.
+- **Release-signing keystore** — undecided, blocks the first real GitHub
+  Release.
+- **Moderator review queue** — reports submit from the app; reviewing happens
+  outside it. Deliberate scope cut in `android/README.md`.
+- **DMs** — libsignal stays backend-only this phase.
+
+## Product rules enforced in code, not just documented
+
+Worth knowing before changing anything:
+
+- **No counts anywhere.** `Memo` has `likedByMe` and no totals — non-negotiable
+  #4. A number on a screen is how that decision gets quietly reversed.
+- **The stream ends.** A null cursor is end-of-feed, tested in `:core`,
+  `:feature-radio` and `:feature-carddeck` — non-negotiable #3.
+- **Failures speak.** `TewResult.Failure.spoken` is plain second-person
+  language; no status codes reach the user.
+- **The narrator goes silent under a screen reader.** TalkBack is already
+  speech; a second voice the user can't silence is worse than useless.
+- **No timed or precise gestures.** Direction-only swipes, no velocity
+  threshold, no double-tap, no long-press — non-negotiable #6.
 
 ## Next step
 
-**Run the spike on a real phone** — `feature-carddeck/SPIKE.md`, three
-passes, ~15 minutes. That result decides whether the card deck is built on
-raw touch or on semantic accessibility actions, and it gates step 2 of
-`IMPLEMENTATION.md`'s build order.
+**Run the spike, and run the app.** Both need the same thing: a phone, the
+`tew-debug-apk` artifact from the latest CI run on `dev`, and someone to use
+them. The spike answers the card-deck question; the app itself has never been
+seen running by anyone.
 
-`:core` was explicitly gated behind a working spike for this session, so it
-was not started. Strictly by dependency it could run in parallel — `:core`
-does not depend on the spike's outcome, only the feature modules do — but
-that is Said's call to make, not an assumption to act on.
+After that, the scope call on route coverage (#5) and the recording UI.
