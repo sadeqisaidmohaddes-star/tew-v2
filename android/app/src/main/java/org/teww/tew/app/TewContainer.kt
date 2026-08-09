@@ -8,10 +8,15 @@ import org.teww.tew.core.playback.Media3PlaybackSession
 import org.teww.tew.core.playback.PlaybackSession
 import org.teww.tew.core.record.MemoRecorder
 import org.teww.tew.core.voice.VoiceCommandListener
+import kotlinx.coroutines.runBlocking
+import org.teww.tew.core.net.TewApiConfig
+import org.teww.tew.core.net.TewApiFactory
 import org.teww.tew.core.repo.FeedRepository
 import org.teww.tew.core.repo.InMemoryFeedRepository
 import org.teww.tew.core.repo.InMemoryModerationRepository
 import org.teww.tew.core.repo.ModerationRepository
+import org.teww.tew.core.repo.NetworkFeedRepository
+import org.teww.tew.core.repo.NetworkModerationRepository
 
 /**
  * Dependency wiring, by hand.
@@ -23,27 +28,51 @@ import org.teww.tew.core.repo.ModerationRepository
  * this file can hold clearly, that is the signal to reach for a framework, not
  * before.
  *
- * ## What is deliberately fake here
+ * ## Server or sample data
  *
- * [authSession] is [StubAuthSession] and the repositories are the in-memory
- * ones. Both are stand-ins with no backend behind them, and this file is the
- * single place either gets swapped:
+ * If a server address has been set (Moderator controls → Server), the app
+ * talks to it: real API client, real playback over HTTP, real posting. If not,
+ * it runs on built-in sample data so the app is still usable on a phone with
+ * nothing reachable — which is what makes an accessibility test possible
+ * before any backend exists.
  *
- * - Firebase Auth is deferred in `STATE.md` — no account chosen yet.
- * - `backend/README.md` is design-stage; the API does not exist.
- *
- * Swapping in the real ones is two lines here and no change anywhere else.
- * That is the point of the interfaces in `:core`.
+ * [authSession] is still [StubAuthSession] either way. Firebase is deferred in
+ * `STATE.md`, and the stub presents a token the backend's own stub verifier
+ * accepts. **It signs anyone in and must not reach a public build.**
  */
 class TewContainer(context: Context) {
 
     private val appContext = context.applicationContext
 
+    val settings = TewSettings(appContext)
+
     val authSession: AuthSession = StubAuthSession()
 
-    val feedRepository: FeedRepository = InMemoryFeedRepository()
+    /**
+     * Whether this session is talking to a real server.
+     *
+     * Read once at construction. Changing the address recreates the activity,
+     * which rebuilds this container — a repository swapped underneath a
+     * running feed would leave a memo playing from a server the app is no
+     * longer signed in to.
+     */
+    val usingServer: Boolean = settings.usingServer
 
-    val moderationRepository: ModerationRepository = InMemoryModerationRepository()
+    private val api = if (usingServer) {
+        TewApiFactory.create(
+            TewApiConfig(baseUrl = settings.serverUrl, logRequests = true),
+            authSession,
+        )
+    } else {
+        null
+    }
+
+    val feedRepository: FeedRepository =
+        api?.let { NetworkFeedRepository(it, settings.serverUrl) } ?: InMemoryFeedRepository()
+
+    val moderationRepository: ModerationRepository =
+        api?.let { NetworkModerationRepository(it, settings.serverUrl) }
+            ?: InMemoryModerationRepository()
 
     /**
      * Where media buttons and voice deliver commands. One bus for the app: the
@@ -63,7 +92,18 @@ class TewContainer(context: Context) {
      * headset and lock-screen transport buttons work — the media-controls leg
      * of non-negotiable #5.
      */
-    val playbackSession: PlaybackSession = Media3PlaybackSession(context, commandBus)
+    val playbackSession: PlaybackSession = Media3PlaybackSession(
+        context = context,
+        commandBus = commandBus,
+        // Memo audio is behind the same auth as everything else, so the player
+        // needs the token. Only when there is a server: locally-recorded files
+        // are read from disk and need no header.
+        authHeader = if (usingServer) {
+            { runBlocking { authSession.bearerToken() } }
+        } else {
+            null
+        },
+    )
 
     /**
      * A new recorder per composer, not a shared one. MediaRecorder is a

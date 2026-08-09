@@ -143,3 +143,21 @@ test('posting a memo with no audio is refused', async () => {
   const res = await app.inject({ method: 'POST', url: '/v1/memos', headers: auth });
   assert.equal(res.statusCode, 400);
 });
+
+test('audio_url is a resolvable path, not a bare key', async () => {
+  // The client resolves this against its configured base URL. A bare key
+  // would make the client invent the route; an absolute URL would need the
+  // service to know its own public hostname, which behind a reverse proxy it
+  // does not.
+  const store = new MemoryStore();
+  await store.ensureUser('u1', 'amina');
+  store.seedMemo({ id: 'm', authorId: 'u1', postedAt: NOW - 10, audioKey: 'a b.m4a' });
+
+  const app = buildApp({
+    store, audio: tempAudioStore(), verifier: new StubTokenVerifier(), now: () => NOW,
+  });
+  const body = (await app.inject({ method: 'GET', url: '/v1/feed', headers: auth })).json();
+
+  // Encoded, so a key with a space survives the round trip.
+  assert.equal(body.memos[0].audio_url, '/v1/audio/a%20b.m4a');
+});

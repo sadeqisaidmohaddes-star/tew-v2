@@ -52,6 +52,12 @@ class StubAuthSession(
 
     private companion object {
         const val STUB_USER_ID = "stub-user"
-        const val STUB_TOKEN = "stub-token-not-a-credential"
+
+        /**
+         * Format the backend's StubTokenVerifier understands: stub:id:username.
+         * Matching the seeded `stub-user` means a tester signing in sees the
+         * seeded profile, including the deliberately-removed memo.
+         */
+        const val STUB_TOKEN = "stub:stub-user:test-user"
     }
 }

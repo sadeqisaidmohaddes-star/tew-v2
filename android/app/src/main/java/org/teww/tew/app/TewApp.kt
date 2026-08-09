@@ -5,8 +5,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -17,10 +21,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.LocalActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.teww.tew.core.auth.AuthState
 import org.teww.tew.core.model.Memo
@@ -48,6 +54,8 @@ private sealed interface Destination {
 
     /** memoId null means a new memo; non-null means a reply to that memo. */
     data class Compose(val replyToMemoId: String?) : Destination
+
+    data object Server : Destination
 }
 
 /**
@@ -90,6 +98,8 @@ private fun SignedIn(container: TewContainer) {
             onProfile = { destination = Destination.Profile },
             onFeed = { destination = Destination.Feed },
             onRecord = { destination = Destination.Compose(null) },
+            onServer = { destination = Destination.Server },
+            usingServer = container.usingServer,
         )
 
         when (val current = destination) {
@@ -142,6 +152,11 @@ private fun SignedIn(container: TewContainer) {
                 status = reportStatus,
             )
 
+            is Destination.Server -> ServerScreen(
+                settings = container.settings,
+                onDone = { destination = Destination.Feed },
+            )
+
             is Destination.Compose -> RecordScreen(
                 viewModel = recordViewModel(container, current.replyToMemoId),
                 onDone = { destination = Destination.Feed },
@@ -180,6 +195,8 @@ private fun ModeratorBar(
     onProfile: () -> Unit,
     onFeed: () -> Unit,
     onRecord: () -> Unit,
+    onServer: () -> Unit,
+    usingServer: Boolean,
 ) {
     Column(
         modifier = Modifier
@@ -188,7 +205,8 @@ private fun ModeratorBar(
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
-            text = "Moderator controls. Currently showing: ${feedModelName(feedModel)}.",
+            text = "Moderator controls. Currently showing: ${feedModelName(feedModel)}. " +
+                if (usingServer) "Connected to a server." else "Using built-in sample memos.",
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
         )
@@ -200,7 +218,96 @@ private fun ModeratorBar(
             }
             TextButton(onClick = onFeed) { Text("Feed") }
             TextButton(onClick = onRecord) { Text("Record") }
+            TextButton(onClick = onServer) { Text("Server") }
             TextButton(onClick = onProfile) { Text("You") }
+        }
+    }
+}
+
+/**
+ * Point the app at a server, or clear it to fall back to sample memos.
+ *
+ * Changing the address recreates the activity rather than swapping the
+ * repository underneath a running feed — a memo playing from a server the app
+ * is no longer signed in to would fail in a way nobody could interpret.
+ */
+@Composable
+private fun ServerScreen(
+    settings: TewSettings,
+    onDone: () -> Unit,
+) {
+    val activity = LocalActivity.current
+    var text by remember { mutableStateOf(settings.serverUrl) }
+    var status by remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = "Server",
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.semantics { heading() },
+        )
+
+        Text(
+            text = if (settings.usingServer) {
+                "Currently using ${settings.serverUrl}"
+            } else {
+                "Currently using the built-in sample memos. " +
+                    "Enter an address to connect to a real server."
+            },
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
+
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            label = { Text("Server address") },
+            placeholder = { Text("tew.example.org") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Button(
+            onClick = {
+                settings.serverUrl = text
+                status = if (settings.usingServer) {
+                    "Saved. Reconnecting to ${settings.serverUrl}"
+                } else {
+                    "Cleared. Going back to the sample memos."
+                }
+                activity?.recreate()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Save and reconnect")
+        }
+
+        Button(
+            onClick = {
+                text = ""
+                settings.serverUrl = ""
+                status = "Cleared. Going back to the sample memos."
+                activity?.recreate()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Use sample memos instead")
+        }
+
+        TextButton(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
+            Text("Back to the feed")
+        }
+
+        if (status.isNotEmpty()) {
+            Text(
+                text = status,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
         }
     }
 }
