@@ -25,6 +25,7 @@ Toolchain unchanged: AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10, Compose BOM
 - `dev` (default) and `prod` are protected: no direct/force push, required
   CI, required `CODEOWNERS` review (`@sadeqisaidmohaddes-star`). `prod`
   enforces even for admins.
+- Taha-Mahmoodi has collaborator (push) access to this repo.
 - CI runs `backend` and `android` jobs on PRs into `dev`/`prod`, plus on
   merges into `dev` and manual dispatch, and publishes the debug APK as a
   **`tew-debug-apk`** artifact (30-day retention) so a tester needs no
