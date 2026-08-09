@@ -25,8 +25,11 @@ Last updated: 2026-08-08
   `./gradlew build test lint` verified locally against a real Android SDK
   (platform 36 / build-tools 36, installed into the sandbox): green, lint
   clean, debug APK produced, spike activity present in the merged
-  manifest. The empirical answer needs a phone with TalkBack on; see
-  "Blocked on" below.
+  manifest. **Debug builds show a "TEW gesture spike" launcher icon**
+  (`feature-carddeck/src/debug/AndroidManifest.xml`) so a tester can tap
+  it instead of needing `adb` — debug-only, so it cannot reach a release.
+  The empirical answer needs a phone with TalkBack on; see "Blocked on"
+  below.
 - Governance docs written: `BRIEF.md`, `IMPLEMENTATION.md`,
   `HANDLING_PROTOCOLS.md`, `GITHUB_WORKFLOW.md`, `CLAUDE.md`, this file.
 - Repo is **public** (deliberate — required for branch protection on the
