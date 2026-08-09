@@ -1,0 +1,24 @@
+# Local Postgres for development and integration tests.
+#
+# HANDLING_PROTOCOLS.md is explicit: backend work runs against a local instance
+# with seed data, never against the production VPS database. This is that
+# instance — bring it up with `npm run db:up`.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tew
+      POSTGRES_PASSWORD: tew
+      POSTGRES_DB: tew
+    ports:
+      - "5433:5432"
+    volumes:
+      - tew-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tew"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  tew-pgdata:

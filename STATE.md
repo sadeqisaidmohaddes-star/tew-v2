@@ -4,8 +4,12 @@ Last updated: 2026-08-08
 
 ## Where things actually are
 
-- Backend: still design stage only. No implementation code exists yet
-  beyond `backend/README.md`.
+- Backend: **API implemented** (Node/Fastify + TypeScript). Auth, feed with
+  keyset cursors, like/skip, comments, report, own-memos, appeal — matching
+  `android/core/API_CONTRACT.md`. Postgres schema and migration runner exist;
+  the service currently runs on an in-memory store, so swapping is one line in
+  `src/server.ts`. 25 tests, no database required to run them. Not implemented:
+  ASR, audio upload/storage, rate limiting, the Firebase verifier.
 - Android: **scaffold implemented and merged** (PR #3). Real Gradle
   project now exists at `android/` with 5 modules (`:app`, `:core`,
   `:feature-radio`, `:feature-carddeck`, `:feature-account`) matching
