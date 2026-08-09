@@ -14,11 +14,16 @@
 CREATE TABLE IF NOT EXISTS users (
   id           TEXT PRIMARY KEY,
   username     TEXT NOT NULL UNIQUE,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  -- Set when the person asks to be forgotten. Their audio is deleted
-  -- outright rather than flagged; see the retention note in README.md.
-  deleted_at   TIMESTAMPTZ
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- No deleted_at, and that is the retention policy rather than an omission.
+-- Audio exists until the person deletes the memo or deletes their account,
+-- and then it is gone: the row is removed, ON DELETE CASCADE takes the
+-- memos, comments, likes and heard-markers with it, and the audio object is
+-- deleted from storage. There is no time-based expiry and no soft delete.
+-- A "deleted" recording still sitting on disk has not been deleted, and
+-- non-negotiable #7 does not leave room for that distinction.
 
 CREATE TABLE IF NOT EXISTS memos (
   id            TEXT PRIMARY KEY,

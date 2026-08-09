@@ -35,6 +35,18 @@ reshape changes one file and no feature-module code.
 | `POST` | `/v1/memos/{id}/report` | Report a memo |
 | `GET` | `/v1/me/memos` | Own memos, **including removed ones** |
 | `POST` | `/v1/memos/{id}/appeal` | Appeal a removal |
+| `DELETE` | `/v1/memos/{id}` | Delete your own memo and its audio |
+| `DELETE` | `/v1/me` | Delete your account and everything you recorded |
+
+## Retention
+
+Audio exists until the person deletes the memo or deletes their account, and
+then it is gone. No time-based expiry, no soft delete. `DELETE /v1/memos/{id}`
+returns 404 for both "no such memo" and "not yours" — telling those apart would
+confirm another person's memo exists to a stranger.
+
+**The client does not call either endpoint yet.** There is no delete control in
+the app. Until there is, the retention rule is only half deliverable.
 
 ## Two things that are load-bearing
 
@@ -59,6 +71,8 @@ be sent.
 - **Anything ranked or personalised.** The feed is ordered, not scored.
 
 ## Open questions for the backend author
+
+*(Answered — see `backend/README.md`. Kept for the record.)*
 
 1. Is cursor pagination opaque-string based, as assumed here?
 2. Does `/v1/me/memos` return removed memos with a human-readable `reason`?

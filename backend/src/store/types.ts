@@ -80,4 +80,23 @@ export interface Store {
   ownMemos(userId: string): Promise<MemoRow[]>;
 
   appeal(userId: string, memoId: string, text: string): Promise<boolean>;
+
+  /**
+   * Delete one of the caller's own memos, audio and all.
+   *
+   * Returns false when the memo does not exist or belongs to someone else —
+   * the route cannot tell those apart on purpose, because distinguishing them
+   * would confirm the existence of another person's memo to a stranger.
+   */
+  deleteMemo(userId: string, memoId: string): Promise<boolean>;
+
+  /**
+   * Delete the caller's account and everything they recorded.
+   *
+   * Non-negotiable #7 treats voice as biometric data, and the retention rule
+   * is: audio exists until the person deletes it or deletes their account.
+   * There is no time-based expiry and no soft delete — a "deleted" recording
+   * that is still on disk is not deleted.
+   */
+  deleteAccount(userId: string): Promise<void>;
 }

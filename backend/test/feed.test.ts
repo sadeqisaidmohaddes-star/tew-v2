@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { buildApp } from '../src/app.ts';
 import { StubTokenVerifier } from '../src/auth/verifier.ts';
 import { decodeCursor, encodeCursor } from '../src/feed/cursor.ts';
-import { defaultFeedWindow, spreadByAuthor, isLastPage } from '../src/feed/ordering.ts';
+import { defaultFeedWindow, newestFirst, takePage } from '../src/feed/ordering.ts';
 import { MemoryStore } from '../src/store/memory-store.ts';
 
 const NOW = 1_770_000_000;
@@ -37,50 +37,62 @@ test('a corrupt cursor means start again, not an error', () => {
 
 // --------------------------------------------------------------- ordering
 
-test('one author cannot fill a page', () => {
-  const memos = Array.from({ length: 20 }, (_, i) => ({
+test('memos come back newest first', () => {
+  // Said's decision: strict reverse-chronological, nothing else.
+  const memos = [
+    { id: 'b', postedAt: NOW - 100 },
+    { id: 'a', postedAt: NOW },
+    { id: 'c', postedAt: NOW - 200 },
+  ];
+
+  assert.deepEqual(newestFirst(memos).map((m) => m.id), ['a', 'b', 'c']);
+});
+
+test('ties are broken deterministically', () => {
+  // Two memos in the same second need a stable order, or a cursor landing
+  // between them would skip one or serve it twice.
+  const memos = [
+    { id: 'aaa', postedAt: NOW },
+    { id: 'ccc', postedAt: NOW },
+    { id: 'bbb', postedAt: NOW },
+  ];
+
+  const once = newestFirst(memos).map((m) => m.id);
+  const twice = newestFirst([...memos].reverse()).map((m) => m.id);
+
+  assert.deepEqual(once, twice, 'ordering is not stable across input order');
+});
+
+test('nothing reorders memos by author', () => {
+  // Guard on the removed per-author quota. It demoted real memos for reasons
+  // the poster did not choose, which BRIEF.md rules out. If it comes back,
+  // this fails.
+  const memos = Array.from({ length: 8 }, (_, i) => ({
     id: `m${i}`,
-    authorId: i < 15 ? 'loud' : `quiet${i}`,
+    authorId: i < 6 ? 'prolific' : `other${i}`,
     postedAt: NOW - i,
   }));
 
-  const { page } = spreadByAuthor(memos, defaultFeedWindow);
-  const fromLoud = page.filter((m) => m.authorId === 'loud').length;
+  const ordered = newestFirst(memos);
 
-  assert.equal(fromLoud, 1, 'one prolific poster took over the page');
+  assert.deepEqual(
+    ordered.map((m) => m.id),
+    memos.map((m) => m.id),
+    'something reordered the feed by author',
+  );
 });
 
-test('spreading holds memos back rather than dropping them', () => {
-  const memos = Array.from({ length: 6 }, (_, i) => ({
-    id: `m${i}`,
-    authorId: 'same',
-    postedAt: NOW - i,
-  }));
+test('a page is cut at the page size, and reports whether more remain', () => {
+  const many = Array.from({ length: 25 }, (_, i) => ({ id: `m${i}`, postedAt: NOW - i }));
+  const few = Array.from({ length: 3 }, (_, i) => ({ id: `m${i}`, postedAt: NOW - i }));
 
-  const { page, heldBack } = spreadByAuthor(memos, defaultFeedWindow);
+  const big = takePage(many, defaultFeedWindow);
+  assert.equal(big.page.length, defaultFeedWindow.pageSize);
+  assert.equal(big.hasMore, true);
 
-  assert.equal(page.length + heldBack.length, memos.length, 'memos disappeared');
-});
-
-test('spreading can be turned off entirely', () => {
-  // The honest "no rule at all" option, if the per-author cap is judged to be
-  // too close to ranking.
-  const memos = Array.from({ length: 5 }, (_, i) => ({
-    id: `m${i}`,
-    authorId: 'same',
-    postedAt: NOW - i,
-  }));
-
-  const { page } = spreadByAuthor(memos, { ...defaultFeedWindow, maxPerAuthorPerPage: null });
-
-  assert.equal(page.length, 5);
-});
-
-test('a short page is not mistaken for the end of the stream', () => {
-  // The spreading rule can return a short page while memos are still waiting.
-  // Treating that as the end would cut a listener off early.
-  assert.equal(isLastPage([{ id: 'held' }], false), false);
-  assert.equal(isLastPage([], false), true);
+  const small = takePage(few, defaultFeedWindow);
+  assert.equal(small.page.length, 3);
+  assert.equal(small.hasMore, false);
 });
 
 // ------------------------------------------------------------------- feed
@@ -129,7 +141,7 @@ test('the stream ends — next_cursor becomes null', async () => {
 test('memos outside the window are not served', async () => {
   const store = new MemoryStore();
   await store.ensureUser('u1', 'amina');
-  store.seedMemo({ id: 'old', authorId: 'a', postedAt: NOW - 30 * 24 * 60 * 60 });
+  store.seedMemo({ id: 'old', authorId: 'a', postedAt: NOW - 90 * 24 * 60 * 60 });
   store.seedMemo({ id: 'fresh', authorId: 'b', postedAt: NOW - 60 });
 
   const app = appWith(store);
@@ -175,4 +187,21 @@ test('no response carries a count of anything', async () => {
 
   assert.ok(!/_count"/.test(raw), `a count leaked onto the wire: ${raw}`);
   assert.ok(!/"likes"/.test(raw));
+});
+
+test('a prolific author is not throttled in the served feed', async () => {
+  // End-to-end version of the ordering guard: six memos from one person come
+  // back in one page, newest first, untouched.
+  const store = new MemoryStore();
+  await store.ensureUser('u1', 'amina');
+  for (let i = 0; i < 6; i++) {
+    store.seedMemo({ id: `p${i}`, authorId: 'prolific', postedAt: NOW - i * 60 });
+  }
+
+  const body = (await appWith(store).inject({ method: 'GET', url: '/v1/feed', headers: auth })).json();
+
+  assert.deepEqual(
+    body.memos.map((m: { id: string }) => m.id),
+    ['p0', 'p1', 'p2', 'p3', 'p4', 'p5'],
+  );
 });
