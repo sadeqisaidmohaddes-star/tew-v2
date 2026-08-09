@@ -52,7 +52,10 @@ npm install
 npm run db:up      # local Postgres in Docker
 npm run migrate    # applies migrations/
 npm run dev        # http://localhost:8080
-npm test           # 25 tests, no database needed
+npm test           # 34 tests, no database needed
+
+# With a database, the Postgres store is exercised too (46 total):
+DATABASE_URL=postgres://tew:tew@localhost:5433/tew npm test
 ```
 
 Tests run against an in-memory store rather than Postgres, deliberately — they
@@ -105,13 +108,21 @@ There is no `deleted_at` column, and its absence is the policy.
   nothing in the client calls it. Until that lands, the promise is only half
   deliverable.
 
+## Deploying
+
+See [`DEPLOY.md`](DEPLOY.md). Docker image, production compose, and a runbook
+for the VPS — including the one decision that has to be made before it goes on
+a public hostname: the stub verifier accepts any token, and the API refuses to
+start in production because of it.
+
 ## Status
 
-**API implemented against an in-memory store; Postgres store is the next
-piece.** Schema, migration runner and the `Store` interface all exist —
-swapping is one line in `src/server.ts`. Running on memory first means the
-Android client can be pointed at a real HTTP server today, which is worth more
-right now than persistence nobody is reading.
+**API implemented, on Postgres.** `DATABASE_URL` selects the Postgres store;
+without it the in-memory store is used for local development only, and the
+service refuses to start that way in production — losing a user's recording
+silently is worse than failing to boot.
 
-Not implemented yet: ASR (whisper.cpp), audio upload and object storage,
-rate limiting, and the Firebase verifier.
+Not implemented yet: **audio upload and object storage**, ASR (whisper.cpp),
+rate limiting, and the Firebase verifier. The API accepts memo metadata and
+serves the feed; the audio path is the next piece of work, and until it exists
+the Android client cannot actually post a recording to this server.
