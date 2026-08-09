@@ -2,7 +2,7 @@
   "name": "tew-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "Third Eye World API — Node/Fastify + Postgres, Android-only phase",
+  "description": "Third Eye World API \u2014 Node/Fastify + Postgres, Android-only phase",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -12,7 +12,7 @@
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsx --test test/**/*.test.ts",
+    "test": "tsx --test test/*.test.ts",
     "migrate": "tsx src/db/migrate.ts",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down"
