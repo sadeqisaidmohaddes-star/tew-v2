@@ -14,6 +14,17 @@ import type {
   Store,
 } from './types.ts';
 
+interface CommentRecord {
+  id: string;
+  memoId: string;
+  authorId: string;
+  authorUsername: string;
+  audioKey: string;
+  durationMs: number;
+  postedAt: number;
+  transcript: string | null;
+}
+
 interface MemoRecord {
   id: string;
   authorId: string;
@@ -41,7 +52,7 @@ interface MemoRecord {
 export class MemoryStore implements Store {
   private users = new Map<string, string>();
   private memos: MemoRecord[] = [];
-  private commentRows: CommentRow[] = [];
+  private commentRows: CommentRecord[] = [];
   private likes = new Set<string>();
   private heard = new Set<string>();
   private reports: Array<{ memoId: string; reason: ReportReason }> = [];
@@ -103,28 +114,27 @@ export class MemoryStore implements Store {
     if (i < 0) return null;
 
     const keys = [this.memos[i]!.audioKey];
-    for (const c of this.commentRows) if (c.memo_id === memoId) keys.push(c.audio_url);
+    for (const c of this.commentRows) if (c.memoId === memoId) keys.push(c.audioKey);
 
     this.memos.splice(i, 1);
-    this.commentRows = this.commentRows.filter((c) => c.memo_id !== memoId);
+    this.commentRows = this.commentRows.filter((c) => c.memoId !== memoId);
     for (const key of [...this.likes]) if (key.endsWith(`:${memoId}`)) this.likes.delete(key);
     for (const key of [...this.heard]) if (key.endsWith(`:${memoId}`)) this.heard.delete(key);
     return keys;
   }
 
   async deleteAccount(userId: string): Promise<string[]> {
-    const username = this.users.get(userId);
     const own = this.memos.filter((m) => m.authorId === userId);
     const ownIds = new Set(own.map((m) => m.id));
 
     const keys = own.map((m) => m.audioKey);
     for (const c of this.commentRows) {
-      if (ownIds.has(c.memo_id) || c.author_username === username) keys.push(c.audio_url);
+      if (ownIds.has(c.memoId) || c.authorId === userId) keys.push(c.audioKey);
     }
 
     this.memos = this.memos.filter((m) => m.authorId !== userId);
     this.commentRows = this.commentRows.filter(
-      (c) => c.author_username !== username && !ownIds.has(c.memo_id),
+      (c) => c.authorId !== userId && !ownIds.has(c.memoId),
     );
     for (const key of [...this.likes]) {
       if (key.startsWith(`${userId}:`) || ownIds.has(key.split(':')[1] ?? '')) this.likes.delete(key);
@@ -152,7 +162,7 @@ export class MemoryStore implements Store {
 
   async comments(memoId: string): Promise<CommentRow[] | null> {
     if (!this.memos.some((m) => m.id === memoId)) return null;
-    return this.commentRows.filter((c) => c.memo_id === memoId);
+    return this.commentRows.filter((c) => c.memoId === memoId).map(toCommentRow);
   }
 
   async addComment(
@@ -162,17 +172,18 @@ export class MemoryStore implements Store {
     durationMs: number,
   ): Promise<CommentRow | null> {
     if (!this.memos.some((m) => m.id === memoId)) return null;
-    const row: CommentRow = {
+    const record: CommentRecord = {
       id: `comment-${++this.counter}`,
-      memo_id: memoId,
-      author_username: this.users.get(userId) ?? userId,
-      audio_url: audioKey,
-      duration_ms: durationMs,
-      posted_at: Math.floor(Date.now() / 1000),
+      memoId,
+      authorId: userId,
+      authorUsername: this.users.get(userId) ?? userId,
+      audioKey,
+      durationMs,
+      postedAt: Math.floor(Date.now() / 1000),
       transcript: null,
     };
-    this.commentRows.push(row);
-    return row;
+    this.commentRows.push(record);
+    return toCommentRow(record);
   }
 
   async addMemo(userId: string, audioKey: string, durationMs: number): Promise<MemoRow> {
@@ -211,7 +222,7 @@ export class MemoryStore implements Store {
     return {
       id: memo.id,
       author_username: memo.authorUsername,
-      audio_url: memo.audioKey,
+      audio_url: `/v1/audio/${encodeURIComponent(memo.audioKey)}`,
       duration_ms: memo.durationMs,
       posted_at: memo.postedAt,
       transcript: memo.transcript,
@@ -223,4 +234,16 @@ export class MemoryStore implements Store {
       },
     };
   }
+}
+
+function toCommentRow(c: CommentRecord): CommentRow {
+  return {
+    id: c.id,
+    memo_id: c.memoId,
+    author_username: c.authorUsername,
+    audio_url: `/v1/audio/${encodeURIComponent(c.audioKey)}`,
+    duration_ms: c.durationMs,
+    posted_at: c.postedAt,
+    transcript: c.transcript,
+  };
 }

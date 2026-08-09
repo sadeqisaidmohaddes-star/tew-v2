@@ -91,13 +91,36 @@ private fun File.asAudioPart(fieldName: String): MultipartBody.Part =
         asRequestBody("audio/mp4".toMediaType()),
     )
 
+/**
+ * Turn the API's `/v1/audio/...` path into something Media3 can fetch.
+ *
+ * The server sends a path rather than an absolute URL because behind a reverse
+ * proxy it does not reliably know its own public hostname. Resolving happens
+ * here, once, rather than in each screen.
+ */
+internal fun resolveAudio(baseUrl: String, path: String): String = when {
+    // Anything already carrying a scheme is left alone. Not just http(s):
+    // the composer plays back `file://` URIs for a memo the app just recorded
+    // and has not posted, and prefixing those would break playback preview.
+    ABSOLUTE_URI.matches(path) -> path
+    else -> baseUrl.trimEnd('/') + "/" + path.trimStart('/')
+}
+
+/** scheme://... — RFC 3986 scheme characters. */
+private val ABSOLUTE_URI = Regex("^[a-zA-Z][a-zA-Z0-9+.-]*://.*")
+
 class NetworkFeedRepository(
     private val api: TewApi,
+    private val baseUrl: String,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : FeedRepository {
 
     override suspend fun feed(cursor: String?): TewResult<FeedPage> =
-        apiCall(dispatcher, { api.feed(cursor) }) { it.toDomain() }
+        apiCall(dispatcher, { api.feed(cursor) }) { page ->
+            page.toDomain().let { domain ->
+                domain.copy(memos = domain.memos.map { it.withResolvedAudio(baseUrl) })
+            }
+        }
 
     override suspend fun setLiked(memoId: String, liked: Boolean): TewResult<Unit> =
         apiUnit(dispatcher) { if (liked) api.like(memoId) else api.unlike(memoId) }
@@ -107,20 +130,27 @@ class NetworkFeedRepository(
 
     override suspend fun comments(memoId: String): TewResult<List<Comment>> =
         apiCall(dispatcher, { api.comments(memoId) }) { dto ->
-            dto.comments.map { it.toDomain() }
+            dto.comments.map { it.toDomain().copy() }
+                .map { it.copy(audioUrl = resolveAudio(baseUrl, it.audioUrl)) }
         }
 
     override suspend fun postComment(memoId: String, audio: File): TewResult<Comment> =
-        apiCall(dispatcher, { api.postComment(memoId, audio.asAudioPart("audio")) }) {
-            it.toDomain()
+        apiCall(dispatcher, { api.postComment(memoId, audio.asAudioPart("audio")) } ) {
+            it.toDomain().let { c -> c.copy(audioUrl = resolveAudio(baseUrl, c.audioUrl)) }
         }
 
     override suspend fun postMemo(audio: File): TewResult<Memo> =
-        apiCall(dispatcher, { api.postMemo(audio.asAudioPart("audio")) }) { it.toDomain() }
+        apiCall(dispatcher, { api.postMemo(audio.asAudioPart("audio")) }) {
+            it.toDomain().withResolvedAudio(baseUrl)
+        }
 }
+
+private fun Memo.withResolvedAudio(baseUrl: String): Memo =
+    copy(audioUrl = resolveAudio(baseUrl, audioUrl))
 
 class NetworkModerationRepository(
     private val api: TewApi,
+    private val baseUrl: String,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ModerationRepository {
 
@@ -128,7 +158,9 @@ class NetworkModerationRepository(
         apiUnit(dispatcher) { api.report(memoId, ReportRequest(reason.wireValue())) }
 
     override suspend fun myMemos(): TewResult<List<Memo>> =
-        apiCall(dispatcher, { api.myMemos() }) { dto -> dto.memos.map { it.toDomain() } }
+        apiCall(dispatcher, { api.myMemos() }) { dto ->
+            dto.memos.map { it.toDomain().withResolvedAudio(baseUrl) }
+        }
 
     override suspend fun appeal(memoId: String, text: String): TewResult<Unit> =
         apiUnit(dispatcher) { api.appeal(memoId, AppealRequest(text)) }

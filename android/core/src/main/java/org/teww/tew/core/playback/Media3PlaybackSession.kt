@@ -10,7 +10,9 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.MediaSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,6 +42,19 @@ class Media3PlaybackSession(
      * tests and the spike want.
      */
     private val commandBus: FeedCommandBus? = null,
+    /**
+     * Supplies the Authorization header for memo audio.
+     *
+     * The audio endpoint is authenticated — these are recordings of
+     * identifiable people, and an open one would make every memo downloadable
+     * by anyone who guessed a key. ExoPlayer fetches the audio itself, so it
+     * needs the token; without this every memo would 401 and the app would
+     * look broken rather than protected.
+     *
+     * Null for local playback of a file the app just recorded, which needs no
+     * header.
+     */
+    private val authHeader: (() -> String?)? = null,
 ) : PlaybackSession {
 
     private val appContext = context.applicationContext
@@ -61,6 +76,26 @@ class Media3PlaybackSession(
                     .build(),
                 /* handleAudioFocus = */ true,
             )
+            .let { builder ->
+                val header = authHeader
+                if (header == null) {
+                    builder
+                } else {
+                    // Media3 1.5 takes a fixed property map rather than a
+                    // per-request provider, so the token is read once when the
+                    // player is first created — which happens on first playback,
+                    // after sign-in. Good enough for the stub session, whose
+                    // token never changes. When Firebase lands and tokens start
+                    // expiring, this needs a DataSource.Factory that re-reads
+                    // per request, or memos will 401 mid-session.
+                    val properties = header()
+                        ?.let { mapOf("Authorization" to "Bearer " + it) }
+                        ?: emptyMap()
+                    val http = DefaultHttpDataSource.Factory()
+                        .setDefaultRequestProperties(properties)
+                    builder.setMediaSourceFactory(DefaultMediaSourceFactory(http))
+                }
+            }
             .build()
             .apply { addListener(playerListener) }
             .also { exo ->

@@ -284,12 +284,24 @@ export class PostgresStore implements Store {
   }
 }
 
+/**
+ * What the client receives as `audio_url`.
+ *
+ * A path, not a bare key and not an absolute URL. A bare key would make the
+ * client invent the route; an absolute URL would need the service to know its
+ * own public hostname, which it does not and should not behind a reverse
+ * proxy. The client resolves this against the base URL it was configured with.
+ */
+function audioPath(key: string): string {
+  return `/v1/audio/${encodeURIComponent(key)}`;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toMemoRow(row: any): MemoRow {
   return {
     id: row.id,
     author_username: row.author_username,
-    audio_url: row.audio_key,
+    audio_url: audioPath(row.audio_key),
     duration_ms: Number(row.duration_ms),
     posted_at: Number(row.posted_at),
     transcript: row.transcript ?? null,
@@ -308,7 +320,7 @@ function toCommentRow(row: any): CommentRow {
     id: row.id,
     memo_id: row.memo_id,
     author_username: row.author_username,
-    audio_url: row.audio_key,
+    audio_url: audioPath(row.audio_key),
     duration_ms: Number(row.duration_ms),
     posted_at: Number(row.posted_at),
     transcript: row.transcript ?? null,

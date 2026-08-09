@@ -11,6 +11,12 @@ the service currently runs on an in-memory store, so swapping is one line in
 `src/server.ts`. 25 tests, no database required to run them. Not implemented:
 ASR, audio upload/storage, rate limiting, the Firebase verifier.
 
+**The app talks to the backend.** Set a server address in the app (Moderator
+controls → Server) and it uses the real API, real playback over HTTP and real
+posting; leave it empty and it runs on built-in sample memos so it is still
+testable with nothing reachable. Verified end to end against Postgres with
+seeded audio.
+
 Android: **all six modules implemented.** `IMPLEMENTATION.md`'s build order
 is complete, plus the two gaps that were open after it — route coverage and
 recording. The app builds, installs, and runs end to end against in-memory
@@ -23,7 +29,7 @@ fakes.
 | `:feature-radio` | Sequential timeline, auto-advance on completion, prefetch, explicit end-of-stream |
 | `:feature-carddeck` | Card deck, onboarding, on-device narrator, **plus** the unrun TalkBack spike |
 | `:feature-record` | Memo composer and reply composer. New module — `IMPLEMENTATION.md`'s structure updated to match |
-| `:app` | Hand-rolled DI container, `when`-based navigation, moderator feed toggle |
+| `:app` | Hand-rolled DI container, `when`-based navigation, moderator feed toggle, **server address screen** |
 
 Toolchain unchanged: AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10, Compose BOM
 2026.06.01, minSdk 26 / compileSdk 36 / JDK 17.
@@ -85,6 +91,10 @@ Toolchain unchanged: AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10, Compose BOM
 - **Android delete UI.** The backend honours the retention rule; no screen in
   the app calls it. Until that lands, "you can delete your audio" is only half
   true.
+- **Media3 reads the auth token once**, when the player is first created.
+  Fine for the stub session, whose token never changes. When Firebase lands
+  and tokens expire, this needs a DataSource that re-reads per request or
+  memos will start failing mid-session.
 - **Postgres hosting** — self-hosted on Said's VPS, managed by another
   session. No provisioning done, no blocker.
 - **Release-signing keystore** — undecided, blocks the first real GitHub
