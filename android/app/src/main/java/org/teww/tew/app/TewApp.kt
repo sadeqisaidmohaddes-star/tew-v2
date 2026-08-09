@@ -92,6 +92,8 @@ private fun SignedIn(container: TewContainer) {
                     viewModel = radioViewModel(container),
                     onComment = { /* recording UI is not in this build — see STATE.md */ },
                     onReport = { destination = Destination.Report(it) },
+                    commandBus = container.commandBus,
+                    voice = container.voiceCommandListener,
                 )
 
                 FeedModel.CARD_DECK -> {
@@ -102,6 +104,8 @@ private fun SignedIn(container: TewContainer) {
                         narrator = narrator,
                         onComment = { /* recording UI is not in this build */ },
                         onReport = { destination = Destination.Report(it) },
+                        commandBus = container.commandBus,
+                        voice = container.voiceCommandListener,
                     )
                 }
             }

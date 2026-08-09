@@ -16,4 +16,14 @@
     -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!--
+        Voice control (non-negotiable #5's voice route) and recording a memo.
+        The microphone is opened only while the user is actively speaking a
+        command or recording — never continuously. Non-negotiable #7 treats
+        voice as biometric data, and an always-listening mic in an app whose
+        users are disproportionately at home and alone would capture a private
+        space rather than a command.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
 </manifest>

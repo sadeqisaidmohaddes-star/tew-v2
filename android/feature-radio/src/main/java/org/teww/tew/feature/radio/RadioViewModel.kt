@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.teww.tew.core.TewResult
 import org.teww.tew.core.model.Memo
+import org.teww.tew.core.playback.FeedCommand
 import org.teww.tew.core.playback.PlaybackSession
 import org.teww.tew.core.repo.FeedRepository
 
@@ -164,6 +165,35 @@ class RadioViewModel(
             announcement = describePosition(index, state.memos.size),
         )
         playbackSession.play(memo.id, memo.audioUrl)
+    }
+
+    /**
+     * Single entry point for commands arriving from outside the UI — media
+     * buttons and voice. Routing every route through one method is what stops
+     * them drifting apart: a route cannot support an action the others do not,
+     * because there is only one place any of them can land.
+     *
+     * REPLY and REPORT need a destination the view model does not own, so they
+     * are handed up via [onNavigationCommand].
+     */
+    fun onCommand(command: FeedCommand) {
+        when (command) {
+            FeedCommand.PLAY_PAUSE -> togglePlayPause()
+            FeedCommand.LIKE -> likeCurrent()
+            FeedCommand.SKIP -> skipCurrent()
+            FeedCommand.REPLAY -> replayCurrent()
+            FeedCommand.REPLY, FeedCommand.REPORT ->
+                _uiState.value.current?.let { onNavigationCommand?.invoke(command, it.id) }
+        }
+    }
+
+    /** Set by the screen, which owns navigation. */
+    var onNavigationCommand: ((FeedCommand, String) -> Unit)? = null
+
+    fun replayCurrent() {
+        val memo = _uiState.value.current ?: return
+        playbackSession.play(memo.id, memo.audioUrl)
+        announce("Playing again.")
     }
 
     fun togglePlayPause() {
