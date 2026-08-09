@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -18,8 +19,23 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+
+    // Playback. Only :core touches Media3 — a feature module importing it
+    // directly is a boundary violation (IMPLEMENTATION.md).
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
 
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
+
+    // Networking. Same rule: Retrofit lives here and nowhere else.
+    api(libs.kotlinx.serialization.json)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.serialization)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.okhttp.mockwebserver)
 }
