@@ -4,9 +4,10 @@
 
         <!--
             Spike-only screen (see spike/TalkBackPassthroughSpikeActivity.kt and
-            SPIKE.md). Deliberately has no LAUNCHER intent-filter, so it adds no
-            icon and no entry point to the real app; it is started explicitly
-            over adb during the on-device TalkBack pass.
+            SPIKE.md). No LAUNCHER intent-filter here, so release builds carry
+            no icon and no entry point to it. The debug source set
+            (src/debug/AndroidManifest.xml) adds one, so testers can just tap it
+            rather than needing adb.
 
             exported="true" is what makes that adb start possible from the shell
             user. It is safe here only because the screen reads and writes

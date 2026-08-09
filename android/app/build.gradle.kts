@@ -37,9 +37,12 @@ dependencies {
     implementation(project(":feature-radio"))
     implementation(project(":feature-carddeck"))
     implementation(project(":feature-account"))
+    implementation(project(":feature-record"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.activity.compose)
 
     implementation(platform(libs.compose.bom))
