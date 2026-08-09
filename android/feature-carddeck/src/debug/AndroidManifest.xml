@@ -1,0 +1,33 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+        Debug-only launcher entry for the spike screen.
+
+        The spike originally had no icon, so starting it meant `adb shell am
+        start` from a developer machine. That made the one test that matters
+        runnable only by someone with an Android toolchain — which is the
+        wrong way round, because the person best placed to run a screen-reader
+        test is the one least likely to have adb installed.
+
+        This source set is compiled into debug builds only, so the icon exists
+        in the APK testers install and cannot reach a release build. The
+        activity itself stays declared in the main manifest; this only adds the
+        intent-filter that puts it in the app drawer.
+
+        Delete along with the rest of the spike once the passthrough question
+        is settled.
+    -->
+    <application>
+        <activity
+            android:name=".spike.TalkBackPassthroughSpikeActivity"
+            android:exported="true"
+            tools:node="merge">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
