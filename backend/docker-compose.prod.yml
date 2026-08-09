@@ -1,0 +1,41 @@
+# Production compose for the VPS.
+#
+# Postgres is NOT published to the host here — it is reachable only on the
+# compose network. The VPS runs other sites (aaPanel), and an exposed database
+# port on a shared box is an invitation.
+#
+# Put the real values in a .env file beside this one. See .env.example.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tew}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-tew}
+    volumes:
+      - tew-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tew}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-tew}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tew}
+    # Bound to localhost only. Terminate TLS in front of it — aaPanel's nginx
+    # is already there. Serving this port straight to the internet would put
+    # voice recordings on plaintext HTTP.
+    ports:
+      - "127.0.0.1:${API_PORT:-8080}:8080"
+
+volumes:
+  tew-pgdata:

@@ -1,3 +1,7 @@
+-- gen_random_uuid() is built in from Postgres 13; this keeps the migration
+-- working on anything older the VPS might be running.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- TEW initial schema.
 --
 -- Two things worth reading before changing anything here.
