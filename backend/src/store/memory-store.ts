@@ -1,8 +1,8 @@
 import { encodeCursor, decodeCursor } from '../feed/cursor.ts';
 import {
   defaultFeedWindow,
-  isLastPage,
-  spreadByAuthor,
+  newestFirst,
+  takePage,
   windowStart,
   type FeedWindow,
 } from '../feed/ordering.ts';
@@ -75,28 +75,52 @@ export class MemoryStore implements Store {
     const from = windowStart(nowSeconds, this.window);
     const decoded = decodeCursor(cursor);
 
-    const candidates = this.memos
-      .filter((m) => m.state === 'visible')
-      .filter((m) => m.postedAt >= from)
-      .filter((m) => !this.heard.has(`${userId}:${m.id}`))
-      .filter((m) => {
-        if (!decoded) return true;
-        // Keyset: strictly older than the cursor, ties broken by id.
-        if (m.postedAt !== decoded.postedAt) return m.postedAt < decoded.postedAt;
-        return m.id < decoded.id;
-      })
-      .sort((a, b) => (b.postedAt - a.postedAt) || (a.id < b.id ? 1 : -1));
+    const candidates = newestFirst(
+      this.memos
+        .filter((m) => m.state === 'visible')
+        .filter((m) => from === null || m.postedAt >= from)
+        .filter((m) => !this.heard.has(`${userId}:${m.id}`))
+        .filter((m) => {
+          if (!decoded) return true;
+          // Keyset: strictly older than the cursor, ties broken by id.
+          if (m.postedAt !== decoded.postedAt) return m.postedAt < decoded.postedAt;
+          return m.id < decoded.id;
+        }),
+    );
 
-    const { page, heldBack } = spreadByAuthor(candidates, this.window);
+    const { page, hasMore } = takePage(candidates, this.window);
     const last = page.at(-1);
 
     return {
       memos: page.map((m) => this.toRow(m, userId)),
       next_cursor:
-        isLastPage(heldBack, false) || !last
-          ? null
-          : encodeCursor({ postedAt: last.postedAt, id: last.id }),
+        !hasMore || !last ? null : encodeCursor({ postedAt: last.postedAt, id: last.id }),
     };
+  }
+
+  async deleteMemo(userId: string, memoId: string): Promise<boolean> {
+    const i = this.memos.findIndex((m) => m.id === memoId && m.authorId === userId);
+    if (i < 0) return false;
+    this.memos.splice(i, 1);
+    this.commentRows = this.commentRows.filter((c) => c.memo_id !== memoId);
+    for (const key of [...this.likes]) if (key.endsWith(`:${memoId}`)) this.likes.delete(key);
+    for (const key of [...this.heard]) if (key.endsWith(`:${memoId}`)) this.heard.delete(key);
+    return true;
+  }
+
+  async deleteAccount(userId: string): Promise<void> {
+    const ownIds = new Set(this.memos.filter((m) => m.authorId === userId).map((m) => m.id));
+    this.memos = this.memos.filter((m) => m.authorId !== userId);
+    this.commentRows = this.commentRows.filter(
+      (c) => c.author_username !== this.users.get(userId) && !ownIds.has(c.memo_id),
+    );
+    for (const key of [...this.likes]) {
+      if (key.startsWith(`${userId}:`) || ownIds.has(key.split(':')[1] ?? '')) this.likes.delete(key);
+    }
+    for (const key of [...this.heard]) {
+      if (key.startsWith(`${userId}:`) || ownIds.has(key.split(':')[1] ?? '')) this.heard.delete(key);
+    }
+    this.users.delete(userId);
   }
 
   async setLiked(userId: string, memoId: string, liked: boolean): Promise<boolean> {

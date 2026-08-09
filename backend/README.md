@@ -76,27 +76,34 @@ Answers, now implemented:
 | What audio container? | Client uploads AAC/MP4; the server transcodes for whisper.cpp. The client should not have to know what the ASR wants. |
 | Rate limiting? | Planned as `429` + `Retry-After`. Not implemented yet. |
 
-## Still open — these need a decision, not code
+## Decided by Said
 
-- **How the feed is ordered.** `BRIEF.md` forbids a ranking algorithm, but
-  "not ranked" is not "no rule". The default implemented in
-  `src/feed/ordering.ts` is: newest first, over memos you have not heard, in a
-  seven-day window, **one memo per author per page**. That last rule is the
-  closest thing here to ranking — it demotes real memos for reasons the poster
-  did not choose. It exists because on a small network one person's ten memos
-  would otherwise be everyone's entire day. It is a single config value and can
-  be switched off. **This is Said's call, not an engineering default.**
-- **Voice retention.** Non-negotiable #7 makes voice biometric data. How long
-  is audio kept? Is it encrypted at rest? Does a removed memo's audio get
-  destroyed or only hidden? The schema deletes a user's audio on account
-  deletion and nothing else is decided. This is policy and it is the most
-  important open question here.
+**Feed ordering: newest to oldest.** Strict reverse-chronological over memos
+you have not heard. No scoring, no personalisation, no per-author quota. An
+earlier draft capped each author to one memo per page; that is gone, because it
+demoted real memos for reasons the poster did not choose, which `BRIEF.md`
+rules out. There is a test asserting nothing reorders the feed by author.
+
+**Voice retention: audio exists until the person deletes it.** Either they
+delete the memo (`DELETE /v1/memos/:id`) or they delete their account
+(`DELETE /v1/me`), and then it is gone — row removed, cascade takes comments,
+likes and heard-markers, audio object deleted from storage. **No time-based
+expiry and no soft delete.** A "deleted" recording still sitting on disk has
+not been deleted, and non-negotiable #7 leaves no room for that distinction.
+There is no `deleted_at` column, and its absence is the policy.
+
+## Still open
+
 - **Where moderation actually happens.** `android/README.md` cuts the in-app
   queue, so reports go somewhere else — a CLI, a small page, direct SQL. That
   choice changes what this service needs to expose.
-- **Firebase project.** Unchosen. `TokenVerifier` is an interface with a stub
-  behind it; the stub refuses to run in production.
+- **Firebase project.** Not needed for the internal prototype test, per Said.
+  `TokenVerifier` is an interface with a stub behind it; the stub refuses to
+  run with `NODE_ENV=production`.
 - **VPS specs.** whisper.cpp model size depends on available CPU and RAM.
+- **The Android app has no delete UI yet.** The API honours the retention rule;
+  nothing in the client calls it. Until that lands, the promise is only half
+  deliverable.
 
 ## Status
 

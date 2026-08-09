@@ -75,21 +75,16 @@ Toolchain unchanged: AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10, Compose BOM
 
 ## Deliberately deferred, not forgotten
 
-- **Firebase project / Google Sign-In** — no account chosen. `StubAuthSession`
-  satisfies the `AuthSession` interface in the meantime. Swapping is two lines
-  in `app/TewContainer.kt` and no feature-module change.
+- **Firebase project / Google Sign-In** — not needed for the internal
+  prototype test, per Said. `StubAuthSession` satisfies the `AuthSession`
+  interface in the meantime. Swapping is two lines in `app/TewContainer.kt`
+  and no feature-module change. Must not reach a public build.
 - **Backend Postgres store** — schema and migrations written, store interface
   settled, implementation pending. The four open questions in
   `core/API_CONTRACT.md` are now answered in `backend/README.md`.
-- **Feed ordering is an unanswered product question.** The backend defaults to
-  newest-first over unheard memos in a seven-day window, one memo per author
-  per page. That last rule is the closest thing in the codebase to ranking —
-  it is one config value, it can be switched off, and it needs Said's decision
-  rather than an engineering default.
-- **Voice retention policy.** Non-negotiable #7 makes voice biometric data.
-  Retention period, encryption at rest, and whether a removed memo's audio is
-  destroyed or merely hidden are all undecided. The most important open
-  question on the backend side.
+- **Android delete UI.** The backend honours the retention rule; no screen in
+  the app calls it. Until that lands, "you can delete your audio" is only half
+  true.
 - **Postgres hosting** — self-hosted on Said's VPS, managed by another
   session. No provisioning done, no blocker.
 - **Release-signing keystore** — undecided, blocks the first real GitHub
@@ -97,6 +92,14 @@ Toolchain unchanged: AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10, Compose BOM
 - **Moderator review queue** — reports submit from the app; reviewing happens
   outside it. Deliberate scope cut in `android/README.md`.
 - **DMs** — libsignal stays backend-only this phase.
+
+## Decisions taken, so they are not relitigated
+
+- **Feed ordering: newest to oldest.** Strict reverse-chronological over
+  unheard memos. The per-author quota an earlier draft had is removed and
+  there is a test guarding against its return.
+- **Voice retention: until the person deletes it.** Memo deletion or account
+  deletion destroys the audio. No expiry, no soft delete, no `deleted_at`.
 
 ## Product rules enforced in code, not just documented
 

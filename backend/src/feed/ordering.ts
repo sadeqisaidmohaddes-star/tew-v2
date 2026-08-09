@@ -1,106 +1,81 @@
 /**
  * How the feed is ordered, and where it ends.
  *
- * ## This is a product decision wearing technical clothes
+ * ## Newest to oldest. That is the whole rule.
  *
- * `BRIEF.md` forbids a ranking algorithm and `IMPLEMENTATION.md` inherits it:
- * no scoring, no personalisation, no engagement signals. But "not ranked" is
- * not the same as "no rule" — something has to decide what a user hears first
- * and when the stream stops.
+ * Decided by Said. Strict reverse-chronological over memos the caller has not
+ * already heard or skipped — no scoring, no personalisation, no per-author
+ * quota, nothing that reorders one memo relative to another for any reason
+ * except when it was posted.
  *
- * The default implemented here, **pending a decision from Said**:
+ * An earlier draft of this file capped each author to one memo per page, to
+ * stop a prolific poster filling a quiet day. That is gone. It was the closest
+ * thing in the codebase to a ranking rule — it demoted real memos for reasons
+ * the poster did not choose — and `BRIEF.md` rules out a ranking algorithm.
+ * If one person dominating the feed turns out to be a real problem, it is a
+ * moderation or product conversation, not something to solve by quietly
+ * reordering people.
  *
- * - **Newest first**, over memos the caller has not already heard or skipped.
- * - **A seven-day window.** Older memos fall out rather than accumulating.
- * - **One memo per author per page**, so a prolific poster cannot fill a quiet
- *   day's feed and crowd everyone else out.
+ * ## Where it ends
  *
- * Each of those is defensible and none is neutral. The third in particular is
- * the closest thing here to a ranking decision — it demotes real memos for
- * reasons the poster did not choose. It is here because the alternative on a
- * small network is one person's ten memos being the entire experience for
- * everyone else, which is worse. **Flagging it rather than burying it.**
+ * Two things bound the feed, and neither is a ranking signal:
  *
- * The seven-day window is what makes non-negotiable #3 true at the data layer
- * rather than only in the client: the stream ends because there is a finite set
- * to end, not because the client stopped asking.
+ * - **Already heard.** A memo served to you does not come back. This is what
+ *   makes the set finite for a given listener.
+ * - **The age window.** Memos older than [FeedWindow.maxAgeDays] are not
+ *   served. Retained so that a new account does not receive the entire history
+ *   of the network as one enormous stream; set `maxAgeDays: null` to disable
+ *   it and serve everything unheard.
+ *
+ * Together they are what makes non-negotiable #3 — *the stream ends* — true at
+ * the data layer rather than only in the client.
  */
 
 export interface FeedWindow {
-  /** How far back the feed reaches. */
-  maxAgeDays: number;
+  /** How far back the feed reaches. Null serves everything unheard. */
+  maxAgeDays: number | null;
   /** Rows per page. Matches the client's default page size. */
   pageSize: number;
-  /**
-   * Cap on memos from any one author within a single page. Null disables the
-   * spreading rule entirely, which is the honest "no rule at all" option if
-   * Said would rather have that.
-   */
-  maxPerAuthorPerPage: number | null;
 }
 
 export const defaultFeedWindow: FeedWindow = {
-  maxAgeDays: 7,
+  maxAgeDays: 30,
   pageSize: 10,
-  maxPerAuthorPerPage: 1,
 };
 
-/** Oldest `posted_at` the feed will serve, in epoch seconds. */
-export function windowStart(nowEpochSeconds: number, window: FeedWindow): number {
+/**
+ * Oldest `posted_at` the feed will serve, in epoch seconds, or null when the
+ * window is disabled.
+ */
+export function windowStart(nowEpochSeconds: number, window: FeedWindow): number | null {
+  if (window.maxAgeDays === null) return null;
   return nowEpochSeconds - window.maxAgeDays * 24 * 60 * 60;
 }
 
 export interface OrderableMemo {
   id: string;
-  authorId: string;
   postedAt: number;
 }
 
 /**
- * Apply the per-author spread to an already time-ordered list.
+ * Newest first, ties broken by id so pagination is stable.
  *
- * Kept separate from SQL and pure so the rule is testable and, more
- * importantly, so it is *visible*. Buried in a query it would be invisible to
- * the next person reading this, and a rule nobody can find is a rule nobody
- * can challenge.
- *
- * Memos held back are not dropped — they are simply not in this page, and the
- * next page picks them up. Nothing is hidden permanently.
+ * The tie-break is not cosmetic: two memos posted in the same second need a
+ * deterministic order, or a keyset cursor sitting between them would either
+ * skip one or serve it twice.
  */
-export function spreadByAuthor<T extends OrderableMemo>(
-  memos: readonly T[],
-  window: FeedWindow,
-): { page: T[]; heldBack: T[] } {
-  const cap = window.maxPerAuthorPerPage;
-  if (cap === null) {
-    return { page: memos.slice(0, window.pageSize), heldBack: memos.slice(window.pageSize) };
-  }
-
-  const seen = new Map<string, number>();
-  const page: T[] = [];
-  const heldBack: T[] = [];
-
-  for (const memo of memos) {
-    const used = seen.get(memo.authorId) ?? 0;
-    if (page.length < window.pageSize && used < cap) {
-      page.push(memo);
-      seen.set(memo.authorId, used + 1);
-    } else {
-      heldBack.push(memo);
-    }
-  }
-
-  return { page, heldBack };
+export function newestFirst<T extends OrderableMemo>(memos: readonly T[]): T[] {
+  return [...memos].sort((a, b) => {
+    if (b.postedAt !== a.postedAt) return b.postedAt - a.postedAt;
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  });
 }
 
-/**
- * Whether this is the last page.
- *
- * Deliberately not `page.length < pageSize`. The spreading rule can return a
- * short page while memos are still waiting, and treating that as the end would
- * cut a user off early — the stream is supposed to end when it is *empty*, not
- * when a page happens to be small.
- */
-export function isLastPage(heldBack: readonly unknown[], moreInDb: boolean): boolean {
-  return heldBack.length === 0 && !moreInDb;
+/** Cut an ordered list to one page, and say whether more remain. */
+export function takePage<T>(
+  ordered: readonly T[],
+  window: FeedWindow,
+): { page: T[]; hasMore: boolean } {
+  const page = ordered.slice(0, window.pageSize);
+  return { page, hasMore: ordered.length > window.pageSize };
 }

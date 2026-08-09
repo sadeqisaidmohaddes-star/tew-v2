@@ -127,6 +127,35 @@ export function buildApp(options: AppOptions): FastifyInstance {
     return reply.code(204).send();
   });
 
+  /**
+   * Delete one of your own memos, audio and all.
+   *
+   * Non-negotiable #7 makes voice biometric data, and the retention rule is:
+   * a recording exists until the person deletes it or deletes their account.
+   * There is no soft delete here — a "deleted" recording still sitting on
+   * disk has not been deleted, and calling it deleted would be a lie told to
+   * someone who cannot check.
+   *
+   * 404 covers both "no such memo" and "not yours", deliberately: telling
+   * those apart would confirm another person's memo exists to a stranger.
+   */
+  app.delete('/v1/memos/:id', async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+    const { id } = request.params as { id: string };
+    const ok = await store.deleteMemo(user.id, id);
+    if (!ok) return reply.code(404).send({ error: 'not_found' });
+    return reply.code(204).send();
+  });
+
+  /** Delete the account and everything recorded under it. Irreversible. */
+  app.delete('/v1/me', async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+    await store.deleteAccount(user.id);
+    return reply.code(204).send();
+  });
+
   app.get('/v1/me/memos', async (request, reply) => {
     const user = await requireUser(request, reply);
     if (!user) return;
