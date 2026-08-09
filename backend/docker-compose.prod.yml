@@ -31,11 +31,17 @@ services:
       NODE_ENV: production
       PORT: 8080
       DATABASE_URL: postgres://${POSTGRES_USER:-tew}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-tew}
+      AUDIO_DIR: /app/data/audio
     # Bound to localhost only. Terminate TLS in front of it — aaPanel's nginx
     # is already there. Serving this port straight to the internet would put
     # voice recordings on plaintext HTTP.
     ports:
       - "127.0.0.1:${API_PORT:-8080}:8080"
+    volumes:
+      # Recordings live here. Without this volume every memo disappears the
+      # next time the image is rebuilt.
+      - tew-audio:/app/data/audio
 
 volumes:
   tew-pgdata:
+  tew-audio:

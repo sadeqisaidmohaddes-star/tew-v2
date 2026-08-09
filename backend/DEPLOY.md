@@ -9,10 +9,10 @@ find, trust the box and correct this file.
 A Node/Fastify API on Postgres. It is the backend for an internal prototype
 test of the Android app, not a public launch.
 
-**It does not yet do everything the app will eventually need.** Audio upload,
-object storage, ASR (whisper.cpp) and rate limiting are not implemented. The
-API accepts memo metadata and serves the feed; the audio path is the next
-piece of work.
+**It does not yet do everything the app will eventually need.** ASR
+(whisper.cpp) and rate limiting are not implemented, so memos arrive without
+transcripts and nothing throttles a caller. Audio upload, storage and serving
+do work.
 
 ## Prerequisites
 
@@ -34,6 +34,21 @@ curl -s localhost:8080/health   # {"ok":true}
 ```
 
 Then point the reverse proxy at `127.0.0.1:8080`.
+
+## Audio storage
+
+Audio is written under `AUDIO_DIR` (default `./data/audio` inside the
+container). **Mount a volume there**, or every recording disappears the next
+time the image is rebuilt:
+
+```yaml
+    volumes:
+      - tew-audio:/app/data/audio
+```
+
+Seeding needs `espeak-ng` and `ffmpeg`, which the runtime image does not carry
+— run `npm run seed` from a checkout with `DATABASE_URL` and `AUDIO_DIR`
+pointing at the deployed database and volume, rather than inside the container.
 
 ## Three things that will stop it booting, on purpose
 
@@ -84,6 +99,9 @@ Nothing here backs anything up. Before the test involves real people:
 docker compose -f docker-compose.prod.yml exec postgres \
   pg_dump -U tew tew | gzip > tew-$(date +%F).sql.gz
 ```
+
+The audio volume needs backing up too — `pg_dump` captures the rows, not the
+recordings they point at.
 
 Note what a backup means under the retention rule: **audio exists until the
 person deletes it or deletes their account.** A backup taken before a deletion

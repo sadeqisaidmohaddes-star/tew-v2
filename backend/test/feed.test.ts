@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildApp } from '../src/app.ts';
+import { tempAudioStore } from './helpers.ts';
 import { StubTokenVerifier } from '../src/auth/verifier.ts';
 import { decodeCursor, encodeCursor } from '../src/feed/cursor.ts';
 import { defaultFeedWindow, newestFirst, takePage } from '../src/feed/ordering.ts';
@@ -9,7 +10,7 @@ import { MemoryStore } from '../src/store/memory-store.ts';
 const NOW = 1_770_000_000;
 
 function appWith(store: MemoryStore) {
-  return buildApp({ store, verifier: new StubTokenVerifier(), now: () => NOW });
+  return buildApp({ store, audio: tempAudioStore(), verifier: new StubTokenVerifier(), now: () => NOW });
 }
 
 const auth = { authorization: 'Bearer stub:u1:amina' };
