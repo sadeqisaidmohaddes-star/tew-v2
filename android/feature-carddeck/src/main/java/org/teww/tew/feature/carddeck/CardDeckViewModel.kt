@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.teww.tew.core.TewResult
 import org.teww.tew.core.model.Memo
+import org.teww.tew.core.playback.FeedCommand
 import org.teww.tew.core.playback.PlaybackSession
 import org.teww.tew.core.repo.FeedRepository
 
@@ -81,6 +82,21 @@ class CardDeckViewModel(
     fun onboardingFinished() {
         _uiState.value = _uiState.value.copy(onboardingDone = true)
     }
+
+    /** See RadioViewModel.onCommand — the two feeds funnel routes identically. */
+    fun onCommand(command: FeedCommand) {
+        when (command) {
+            FeedCommand.PLAY_PAUSE -> togglePlayPause()
+            FeedCommand.LIKE -> like()
+            FeedCommand.SKIP -> skip()
+            FeedCommand.REPLAY -> playCurrent()
+            FeedCommand.REPLY, FeedCommand.REPORT ->
+                _uiState.value.current?.let { onNavigationCommand?.invoke(command, it.id) }
+        }
+    }
+
+    /** Set by the screen, which owns navigation. */
+    var onNavigationCommand: ((FeedCommand, String) -> Unit)? = null
 
     fun playCurrent() {
         val memo = _uiState.value.current ?: return

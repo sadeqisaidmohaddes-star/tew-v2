@@ -14,7 +14,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import org.teww.tew.core.playback.FeedCommand
+import org.teww.tew.core.playback.FeedCommandBus
+import org.teww.tew.core.voice.VoiceCommandListener
+import org.teww.tew.core.voice.VoiceState
+import org.teww.tew.core.voice.voiceNotUnderstood
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -61,6 +68,8 @@ fun CardDeckScreen(
     onComment: (String) -> Unit,
     onReport: (String) -> Unit,
     modifier: Modifier = Modifier,
+    commandBus: FeedCommandBus? = null,
+    voice: VoiceCommandListener? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val playback by viewModel.playbackState.collectAsStateWithLifecycle()
@@ -73,6 +82,28 @@ fun CardDeckScreen(
     // Narrate state changes for users who are not running a screen reader.
     // Narrator suppresses itself when TalkBack is on, so this never doubles up.
     LaunchedEffect(state.announcement) { narrator.say(state.announcement) }
+
+    // Media buttons and voice funnel into the same command entry point the
+    // buttons and accessibility actions use. Released on dispose so a command
+    // cannot reach a screen the moderator toggle has switched away from.
+    DisposableEffect(commandBus, voice) {
+        viewModel.onNavigationCommand = { command, memoId ->
+            when (command) {
+                FeedCommand.REPLY -> onComment(memoId)
+                FeedCommand.REPORT -> onReport(memoId)
+                else -> Unit
+            }
+        }
+        commandBus?.setHandler(viewModel::onCommand)
+        voice?.setCommandHandler(viewModel::onCommand)
+        onDispose {
+            commandBus?.setHandler(null)
+            voice?.setCommandHandler(null)
+            viewModel.onNavigationCommand = null
+        }
+    }
+
+    val voiceState = voice?.state?.collectAsState()?.value ?: VoiceState.Idle
 
     if (!state.onboardingDone) {
         OnboardingScreen(
@@ -90,6 +121,7 @@ fun CardDeckScreen(
         add(CustomAccessibilityAction("Skip this memo") { viewModel.skip(); true })
         add(CustomAccessibilityAction("Play or pause") { viewModel.togglePlayPause(); true })
         add(CustomAccessibilityAction("Play this memo again") { viewModel.playCurrent(); true })
+        voice?.let { v -> add(CustomAccessibilityAction("Speak a command") { v.startListening(); true }) }
         memoId?.let {
             add(CustomAccessibilityAction("Reply with a voice memo") { onComment(it); true })
             add(CustomAccessibilityAction("Report this memo") { onReport(it); true })
@@ -160,6 +192,17 @@ fun CardDeckScreen(
             Button(onClick = viewModel::playCurrent) { Text("Again") }
         }
 
+        if (voice != null) {
+            Text(
+                text = deckVoiceStatus(voiceState),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+            )
+            Button(onClick = { voice.startListening() }, modifier = Modifier.fillMaxWidth()) {
+                Text("Speak a command")
+            }
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
                 onClick = { memoId?.let(onComment) },
@@ -219,5 +262,17 @@ private fun Modifier.forgivingSwipes(
             }
         }
     }
+
+/** Same wording as radio's, so both feeds describe the voice route identically. */
+internal fun deckVoiceStatus(state: VoiceState): String = when (state) {
+    is VoiceState.Idle -> "Voice is off. Press Speak a command to use it."
+    is VoiceState.Listening -> "Listening."
+    is VoiceState.Heard -> if (state.command != null) {
+        "Heard \"${state.text}\"."
+    } else {
+        voiceNotUnderstood(state.text)
+    }
+    is VoiceState.Unavailable -> state.spoken
+}
 
 private const val SWIPE_THRESHOLD_DP = 48

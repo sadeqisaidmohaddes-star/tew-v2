@@ -3,8 +3,10 @@ package org.teww.tew.app
 import android.content.Context
 import org.teww.tew.core.auth.AuthSession
 import org.teww.tew.core.auth.StubAuthSession
+import org.teww.tew.core.playback.FeedCommandBus
 import org.teww.tew.core.playback.Media3PlaybackSession
 import org.teww.tew.core.playback.PlaybackSession
+import org.teww.tew.core.voice.VoiceCommandListener
 import org.teww.tew.core.repo.FeedRepository
 import org.teww.tew.core.repo.InMemoryFeedRepository
 import org.teww.tew.core.repo.InMemoryModerationRepository
@@ -41,13 +43,27 @@ class TewContainer(context: Context) {
     val moderationRepository: ModerationRepository = InMemoryModerationRepository()
 
     /**
+     * Where media buttons and voice deliver commands. One bus for the app: the
+     * feed screen that is currently composed claims it, so a headset button
+     * always reaches whichever feed the moderator toggle has on screen.
+     */
+    val commandBus = FeedCommandBus()
+
+    val voiceCommandListener = VoiceCommandListener(context)
+
+    /**
      * One playback session for the whole app, not one per screen. Two players
      * could otherwise talk over each other when the moderator toggle switches
      * feeds mid-session, which in an audio-only app is not a cosmetic bug.
+     *
+     * Passing [commandBus] publishes a `MediaSession`, which is what makes
+     * headset and lock-screen transport buttons work — the media-controls leg
+     * of non-negotiable #5.
      */
-    val playbackSession: PlaybackSession = Media3PlaybackSession(context)
+    val playbackSession: PlaybackSession = Media3PlaybackSession(context, commandBus)
 
     fun release() {
         playbackSession.release()
+        voiceCommandListener.release()
     }
 }

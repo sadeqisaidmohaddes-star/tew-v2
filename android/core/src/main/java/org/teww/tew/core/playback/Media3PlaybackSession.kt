@@ -8,7 +8,10 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,12 +30,21 @@ import kotlinx.coroutines.flow.asStateFlow
  *   through a memo it is. Polling stops whenever nothing is playing so it
  *   costs nothing on a budget device at idle.
  */
+@OptIn(UnstableApi::class)
 class Media3PlaybackSession(
     context: Context,
+    /**
+     * When supplied, a [MediaSession] is published so headset and lock-screen
+     * transport buttons reach the feed — the "media controls" leg of
+     * non-negotiable #5. Null keeps playback private to the app, which is what
+     * tests and the spike want.
+     */
+    private val commandBus: FeedCommandBus? = null,
 ) : PlaybackSession {
 
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
+    private var mediaSession: MediaSession? = null
 
     private val _state = MutableStateFlow(PlaybackState())
     override val state: StateFlow<PlaybackState> = _state.asStateFlow()
@@ -51,6 +63,13 @@ class Media3PlaybackSession(
             )
             .build()
             .apply { addListener(playerListener) }
+            .also { exo ->
+                commandBus?.let { bus ->
+                    mediaSession = MediaSession.Builder(appContext, FeedForwardingPlayer(exo, bus))
+                        .setId(MEDIA_SESSION_ID)
+                        .build()
+                }
+            }
     }
 
     private val playerListener = object : Player.Listener {
@@ -126,6 +145,8 @@ class Media3PlaybackSession(
         if (released) return
         released = true
         stopTicker()
+        mediaSession?.release()
+        mediaSession = null
         player.removeListener(playerListener)
         player.release()
         _state.value = PlaybackState()
@@ -157,5 +178,12 @@ class Media3PlaybackSession(
          * current, infrequent enough not to spend battery on a budget phone.
          */
         const val TICK_MS = 250L
+
+        /**
+         * Stable id so the platform recognises this as the same session across
+         * a moderator toggle between feed models — otherwise switching feeds
+         * mid-session would drop and re-create the media notification.
+         */
+        const val MEDIA_SESSION_ID = "tew-feed"
     }
 }
