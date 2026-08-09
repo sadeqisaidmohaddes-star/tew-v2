@@ -1,0 +1,93 @@
+name: Release
+
+# GITHUB_WORKFLOW.md: "On tag push, CI builds the release APK and attaches it
+# to a GitHub Release for that tag" and "Every release must be a downloadable
+# .apk directly from the GitHub Releases page".
+#
+# Releases-page downloads need no GitHub sign-in and are not wrapped in a zip,
+# unlike Actions artifacts — which matters when the person installing is using
+# a screen reader on a phone.
+on:
+  push:
+    tags:
+      - "v*"
+  # Lets a build be produced for an internal test without minting a version
+  # tag. Always marked as a prerelease — see below.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish (e.g. v0.1.0-test1)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    name: Build and publish APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew build test lint --no-daemon
+
+      # Debug-signed, deliberately. STATE.md lists the release-signing keystore
+      # as undecided, and `assembleRelease` produces an unsigned APK that will
+      # not install. A debug-signed build is installable today; swap this for
+      # bundleRelease once a keystore exists.
+      - name: Assemble debug APK
+        working-directory: android
+        run: ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Name the artifact after its tag
+        id: name
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "tew-$TAG.apk"
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.name.outputs.tag }}
+          name: TEW ${{ steps.name.outputs.tag }}
+          files: tew-${{ steps.name.outputs.tag }}.apk
+          # Every build from this workflow is a prerelease until a signing
+          # keystore exists. A debug-signed APK is for testing, never for
+          # distribution, and marking it otherwise would invite it to be
+          # handed to people it was not built for.
+          prerelease: true
+          body: |
+            Internal test build of the TEW Android app.
+
+            **Debug-signed.** Android will warn about an unknown source when
+            you install it — expected for a build that did not come from the
+            Play Store. Not for distribution.
+
+            ## Installing
+
+            1. Download `tew-${{ steps.name.outputs.tag }}.apk` below.
+            2. Open it and allow installation when asked.
+            3. Two icons appear: **TEW** (the app) and **TEW gesture spike**
+               (the TalkBack test screen).
+
+            ## What to test
+
+            `android/feature-carddeck/SPIKE.md` has the gesture-spike protocol.
+            Nothing in this build has been verified on a device — that is what
+            this release is for.
+
+            ## What is not real yet
+
+            - Sign-in accepts anyone; there is no Firebase project.
+            - The feed is served from in-memory sample data, not a backend.
+            - Recording works locally but posts nowhere.
