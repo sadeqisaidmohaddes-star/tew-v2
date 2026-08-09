@@ -34,6 +34,8 @@ import org.teww.tew.feature.carddeck.CardDeckViewModel
 import org.teww.tew.feature.carddeck.Narrator
 import org.teww.tew.feature.radio.RadioScreen
 import org.teww.tew.feature.radio.RadioViewModel
+import org.teww.tew.feature.record.RecordScreen
+import org.teww.tew.feature.record.RecordViewModel
 
 /** Which feed model the tester is currently on. */
 enum class FeedModel { RADIO, CARD_DECK }
@@ -43,6 +45,9 @@ private sealed interface Destination {
     data object Profile : Destination
     data class Report(val memoId: String) : Destination
     data class Appeal(val memo: Memo) : Destination
+
+    /** memoId null means a new memo; non-null means a reply to that memo. */
+    data class Compose(val replyToMemoId: String?) : Destination
 }
 
 /**
@@ -84,13 +89,14 @@ private fun SignedIn(container: TewContainer) {
             },
             onProfile = { destination = Destination.Profile },
             onFeed = { destination = Destination.Feed },
+            onRecord = { destination = Destination.Compose(null) },
         )
 
         when (val current = destination) {
             is Destination.Feed -> when (feedModel) {
                 FeedModel.RADIO -> RadioScreen(
                     viewModel = radioViewModel(container),
-                    onComment = { /* recording UI is not in this build — see STATE.md */ },
+                    onComment = { destination = Destination.Compose(it) },
                     onReport = { destination = Destination.Report(it) },
                     commandBus = container.commandBus,
                     voice = container.voiceCommandListener,
@@ -102,7 +108,7 @@ private fun SignedIn(container: TewContainer) {
                     CardDeckScreen(
                         viewModel = cardDeckViewModel(container),
                         narrator = narrator,
-                        onComment = { /* recording UI is not in this build */ },
+                        onComment = { destination = Destination.Compose(it) },
                         onReport = { destination = Destination.Report(it) },
                         commandBus = container.commandBus,
                         voice = container.voiceCommandListener,
@@ -134,6 +140,11 @@ private fun SignedIn(container: TewContainer) {
                 },
                 onCancel = { destination = Destination.Feed },
                 status = reportStatus,
+            )
+
+            is Destination.Compose -> RecordScreen(
+                viewModel = recordViewModel(container, current.replyToMemoId),
+                onDone = { destination = Destination.Feed },
             )
 
             is Destination.Appeal -> AppealScreen(
@@ -168,6 +179,7 @@ private fun ModeratorBar(
     onToggle: () -> Unit,
     onProfile: () -> Unit,
     onFeed: () -> Unit,
+    onRecord: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -187,6 +199,7 @@ private fun ModeratorBar(
                 Text("Switch to ${feedModelName(otherModel(feedModel))}")
             }
             TextButton(onClick = onFeed) { Text("Feed") }
+            TextButton(onClick = onRecord) { Text("Record") }
             TextButton(onClick = onProfile) { Text("You") }
         }
     }
@@ -218,6 +231,24 @@ private fun radioViewModel(container: TewContainer): RadioViewModel =
     viewModel(key = "radio") {
         RadioViewModel(container.feedRepository, container.playbackSession)
     }
+
+/**
+ * Keyed by what is being replied to, so moving from one memo's reply to
+ * another's gets a fresh recorder rather than the previous one's state.
+ */
+@Composable
+private fun recordViewModel(
+    container: TewContainer,
+    replyToMemoId: String?,
+): RecordViewModel = viewModel(key = "record-${replyToMemoId ?: "new"}") {
+    RecordViewModel(
+        recorder = container.newRecorder(),
+        feedRepository = container.feedRepository,
+        playbackSession = container.playbackSession,
+        replyToMemoId = replyToMemoId,
+        nowMs = { android.os.SystemClock.elapsedRealtime() },
+    )
+}
 
 @Composable
 private fun cardDeckViewModel(container: TewContainer): CardDeckViewModel =

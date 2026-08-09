@@ -4,16 +4,18 @@ Last updated: 2026-08-09
 
 ## Where things actually are
 
-Android: **all five modules implemented.** `IMPLEMENTATION.md`'s build order
-is complete — spike, `:core`, the three feature modules, `:app` wiring.
-The app builds, installs, and runs end to end against in-memory fakes.
+Android: **all six modules implemented.** `IMPLEMENTATION.md`'s build order
+is complete, plus the two gaps that were open after it — route coverage and
+recording. The app builds, installs, and runs end to end against in-memory
+fakes.
 
 | Module | State |
 | --- | --- |
-| `:core` | API client (Retrofit 3 + kotlinx-serialization), `AuthSession` interface + stub, Media3 playback session, repository layer, in-memory fakes |
+| `:core` | API client (Retrofit 3 + kotlinx-serialization), `AuthSession` interface + stub, Media3 playback session + `MediaSession`, voice command parsing, memo recorder, repository layer, in-memory fakes |
 | `:feature-account` | Sign-in, profile, report, appeal |
 | `:feature-radio` | Sequential timeline, auto-advance on completion, prefetch, explicit end-of-stream |
 | `:feature-carddeck` | Card deck, onboarding, on-device narrator, **plus** the unrun TalkBack spike |
+| `:feature-record` | Memo composer and reply composer. New module — `IMPLEMENTATION.md`'s structure updated to match |
 | `:app` | Hand-rolled DI container, `when`-based navigation, moderator feed toggle |
 
 Toolchain unchanged: AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10, Compose BOM
@@ -47,17 +49,17 @@ Toolchain unchanged: AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10, Compose BOM
 
 ## Known gaps in the MVP — deliberate, not forgotten
 
-- **Route coverage is 2 of 3.** Non-negotiable #5 wants media controls, voice,
-  and screen-reader menu. Built: on-screen controls, and custom accessibility
-  actions surfaced in TalkBack's own menu. **Not built: hardware/notification
-  media controls, and voice control.** This is the single largest gap and
-  needs a scope decision. Media buttons need a `MediaSession` in `:core`;
-  voice needs a recogniser and an always-listening decision.
-- **No recording UI.** `android/README.md` scopes "recording/posting a memo"
-  into this build. `:core` has `postMemo`/`postComment` and the repositories
-  implement them, but there is no capture screen, so the reply buttons are
-  wired to nothing. Reporting and appeal — the non-negotiable #8 parts — do
-  work.
+- **Route coverage is complete (3 of 3), but untested on hardware.** Media
+  controls (headset/lock-screen via `MediaSession`), voice (press-to-talk),
+  and the screen-reader actions menu. All three funnel through one
+  `FeedCommand` enum so none can drift. Headset buttons and speech
+  recognition are the two things least verifiable without a device.
+- **Voice is press-to-talk, never always-listening.** A product decision, not
+  a limitation — non-negotiable #7 makes voice biometric data, and an open
+  mic in this app would capture a private space rather than a command.
+- **Recording exists but has never captured real audio.** `MediaRecorder`
+  behaviour, microphone permission flow and file upload are all unexercised
+  outside unit tests.
 - **The card deck does not depend on the spike's answer.** Custom
   accessibility actions are the primary route; swipes are an enhancement for
   non-screen-reader users. If the spike fails, nothing needs rewriting. If it
@@ -101,4 +103,6 @@ Worth knowing before changing anything:
 them. The spike answers the card-deck question; the app itself has never been
 seen running by anyone.
 
-After that, the scope call on route coverage (#5) and the recording UI.
+The prototype is now feature-complete against `android/README.md`'s scope for
+this build, minus the two deliberate cuts (no DMs, no in-app moderator queue).
+What it has never had is contact with a real device or a real backend.
