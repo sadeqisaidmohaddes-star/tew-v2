@@ -51,6 +51,7 @@ cp .env.example .env
 npm install
 npm run db:up      # local Postgres in Docker
 npm run migrate    # applies migrations/
+npm run seed       # 7 users, 10 memos, real spoken audio
 npm run dev        # http://localhost:8080
 npm test           # 34 tests, no database needed
 
@@ -78,6 +79,45 @@ Answers, now implemented:
 | Do own memos carry human-readable removal reasons? | Yes, stored as prose. Moderation wording changes without an app release. |
 | What audio container? | Client uploads AAC/MP4; the server transcodes for whisper.cpp. The client should not have to know what the ASR wants. |
 | Rate limiting? | Planned as `429` + `Retry-After`. Not implemented yet. |
+
+## Seed data
+
+`npm run seed` creates seven invented people and ten memos, with **real spoken
+audio** generated from each transcript by espeak-ng and encoded to the same
+AAC/MP4 the client records. A different voice per person, so they are
+distinguishable by ear.
+
+Why not a placeholder tone: TEW is for people who cannot see the screen. A feed
+of identical beeps proves playback starts and tells you nothing about whether
+the app is *usable* — whether memos are tellable apart, whether the narrator
+collides with the audio, whether skipping mid-sentence feels right. The audio is
+obviously synthetic, which is fine for a mechanical test and is not a substitute
+for real BLV testers reading their own words.
+
+The people are invented on purpose. Non-negotiable #7 makes voice biometric
+data, and seeding a prototype with recordings of real people would be the wrong
+way to begin a project about consent.
+
+Seeding is destructive, so it **refuses to run against a database holding any
+user it did not create** — it cannot wipe a live internal test by accident.
+
+Needs `espeak-ng` and `ffmpeg` on the machine running it (`apt install espeak-ng
+ffmpeg`), not on the server.
+
+One seeded memo is deliberately in the `removed` state with a reason, so the
+moderation and appeal screens have something real to open.
+
+## Audio storage
+
+Audio lives on disk under `AUDIO_DIR` (default `./data/audio`) behind an
+`AudioStore` interface, so object storage can replace it later without touching
+route code. **Mount a volume there in production** or recordings disappear on a
+container rebuild.
+
+`GET /v1/audio/:key` serves it, authenticated like everything else — these are
+recordings of identifiable people, and an open media endpoint would make every
+memo downloadable by anyone who guessed a key. Keys that would escape the
+storage root are rejected rather than sanitised.
 
 ## Decided by Said
 
@@ -122,7 +162,9 @@ without it the in-memory store is used for local development only, and the
 service refuses to start that way in production — losing a user's recording
 silently is worse than failing to boot.
 
-Not implemented yet: **audio upload and object storage**, ASR (whisper.cpp),
-rate limiting, and the Firebase verifier. The API accepts memo metadata and
-serves the feed; the audio path is the next piece of work, and until it exists
-the Android client cannot actually post a recording to this server.
+Audio upload, storage and serving now work end to end: `POST /v1/memos` and
+`POST /v1/memos/:id/comments` accept multipart audio, `GET /v1/audio/:key`
+serves it, and deleting a memo or an account deletes the files too.
+
+Not implemented yet: ASR (whisper.cpp), rate limiting, and the Firebase
+verifier.

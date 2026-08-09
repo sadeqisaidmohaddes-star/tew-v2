@@ -1,6 +1,7 @@
 import { buildApp } from './app.ts';
 import { createVerifier } from './auth/verifier.ts';
 import { createPool, hasDatabase } from './db/pool.ts';
+import { FilesystemAudioStore } from './storage/audio-store.ts';
 import { MemoryStore } from './store/memory-store.ts';
 import { PostgresStore } from './store/postgres-store.ts';
 import type { Store } from './store/types.ts';
@@ -33,8 +34,13 @@ function createStore(): Store {
   return new MemoryStore();
 }
 
+// Audio lives on disk beside the service. Mount a volume at this path in
+// production so recordings survive a container rebuild — see DEPLOY.md.
+const audioRoot = process.env.AUDIO_DIR ?? './data/audio';
+
 const app = buildApp({
   store: createStore(),
+  audio: new FilesystemAudioStore(audioRoot),
   verifier: createVerifier(process.env),
   logger: true,
 });

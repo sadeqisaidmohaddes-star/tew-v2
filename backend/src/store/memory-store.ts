@@ -98,21 +98,33 @@ export class MemoryStore implements Store {
     };
   }
 
-  async deleteMemo(userId: string, memoId: string): Promise<boolean> {
+  async deleteMemo(userId: string, memoId: string): Promise<string[] | null> {
     const i = this.memos.findIndex((m) => m.id === memoId && m.authorId === userId);
-    if (i < 0) return false;
+    if (i < 0) return null;
+
+    const keys = [this.memos[i]!.audioKey];
+    for (const c of this.commentRows) if (c.memo_id === memoId) keys.push(c.audio_url);
+
     this.memos.splice(i, 1);
     this.commentRows = this.commentRows.filter((c) => c.memo_id !== memoId);
     for (const key of [...this.likes]) if (key.endsWith(`:${memoId}`)) this.likes.delete(key);
     for (const key of [...this.heard]) if (key.endsWith(`:${memoId}`)) this.heard.delete(key);
-    return true;
+    return keys;
   }
 
-  async deleteAccount(userId: string): Promise<void> {
-    const ownIds = new Set(this.memos.filter((m) => m.authorId === userId).map((m) => m.id));
+  async deleteAccount(userId: string): Promise<string[]> {
+    const username = this.users.get(userId);
+    const own = this.memos.filter((m) => m.authorId === userId);
+    const ownIds = new Set(own.map((m) => m.id));
+
+    const keys = own.map((m) => m.audioKey);
+    for (const c of this.commentRows) {
+      if (ownIds.has(c.memo_id) || c.author_username === username) keys.push(c.audio_url);
+    }
+
     this.memos = this.memos.filter((m) => m.authorId !== userId);
     this.commentRows = this.commentRows.filter(
-      (c) => c.author_username !== this.users.get(userId) && !ownIds.has(c.memo_id),
+      (c) => c.author_username !== username && !ownIds.has(c.memo_id),
     );
     for (const key of [...this.likes]) {
       if (key.startsWith(`${userId}:`) || ownIds.has(key.split(':')[1] ?? '')) this.likes.delete(key);
@@ -121,6 +133,7 @@ export class MemoryStore implements Store {
       if (key.startsWith(`${userId}:`) || ownIds.has(key.split(':')[1] ?? '')) this.heard.delete(key);
     }
     this.users.delete(userId);
+    return keys;
   }
 
   async setLiked(userId: string, memoId: string, liked: boolean): Promise<boolean> {

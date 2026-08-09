@@ -82,21 +82,28 @@ export interface Store {
   appeal(userId: string, memoId: string, text: string): Promise<boolean>;
 
   /**
-   * Delete one of the caller's own memos, audio and all.
+   * Delete one of the caller's own memos.
    *
-   * Returns false when the memo does not exist or belongs to someone else —
-   * the route cannot tell those apart on purpose, because distinguishing them
-   * would confirm the existence of another person's memo to a stranger.
+   * Returns the audio keys that are now orphaned — the memo's own plus any
+   * replies to it — so the caller can delete the files. Returns null when the
+   * memo does not exist or belongs to someone else; the route cannot tell
+   * those apart on purpose, because distinguishing them would confirm the
+   * existence of another person's memo to a stranger.
+   *
+   * Returning keys rather than deleting files here keeps storage out of the
+   * database layer, and makes it impossible to drop a row while forgetting
+   * the recording it pointed at.
    */
-  deleteMemo(userId: string, memoId: string): Promise<boolean>;
+  deleteMemo(userId: string, memoId: string): Promise<string[] | null>;
 
   /**
-   * Delete the caller's account and everything they recorded.
+   * Delete the caller's account and everything they recorded, returning the
+   * audio keys to remove from storage.
    *
    * Non-negotiable #7 treats voice as biometric data, and the retention rule
    * is: audio exists until the person deletes it or deletes their account.
    * There is no time-based expiry and no soft delete — a "deleted" recording
    * that is still on disk is not deleted.
    */
-  deleteAccount(userId: string): Promise<void>;
+  deleteAccount(userId: string): Promise<string[]>;
 }

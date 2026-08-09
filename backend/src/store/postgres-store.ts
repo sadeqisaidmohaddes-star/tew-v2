@@ -239,19 +239,43 @@ export class PostgresStore implements Store {
    * object storage exists — see the note in README.md. Until then audio lives
    * beside the row and goes with it.
    */
-  async deleteMemo(userId: string, memoId: string): Promise<boolean> {
-    const { rowCount } = await this.pool.query(
-      `DELETE FROM memos WHERE id = $1 AND author_id = $2`,
+  async deleteMemo(userId: string, memoId: string): Promise<string[] | null> {
+    // Collect the audio keys before the cascade removes the rows that name
+    // them. Doing it afterwards would leave the files orphaned on disk with
+    // nothing left pointing at them — which under non-negotiable #7 is the
+    // worst outcome: the recording survives and nobody knows it is there.
+    const { rows: replies } = await this.pool.query(
+      `SELECT audio_key FROM comments WHERE memo_id = $1`,
+      [memoId],
+    );
+
+    const { rows: deleted } = await this.pool.query(
+      `DELETE FROM memos WHERE id = $1 AND author_id = $2 RETURNING audio_key`,
       [memoId, userId],
     );
-    return Boolean(rowCount);
+    if (!deleted.length) return null;
+
+    return [deleted[0].audio_key, ...replies.map((r: { audio_key: string }) => r.audio_key)];
   }
 
-  async deleteAccount(userId: string): Promise<void> {
+  async deleteAccount(userId: string): Promise<string[]> {
+    const { rows } = await this.pool.query(
+      `SELECT audio_key FROM memos WHERE author_id = $1
+       UNION ALL
+       SELECT audio_key FROM comments WHERE author_id = $1
+       UNION ALL
+       SELECT c.audio_key FROM comments c
+         JOIN memos m ON m.id = c.memo_id
+        WHERE m.author_id = $1`,
+      [userId],
+    );
+
     // Cascades through memos, comments, likes, heard, reports and appeals.
     // No soft delete: see migrations/001-init.sql for why there is no
     // deleted_at column.
     await this.pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
+
+    return [...new Set(rows.map((r: { audio_key: string }) => r.audio_key))];
   }
 
   private async memoExists(memoId: string): Promise<boolean> {

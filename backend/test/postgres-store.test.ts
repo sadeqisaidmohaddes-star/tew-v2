@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { buildApp } from '../src/app.ts';
+import { tempAudioStore } from './helpers.ts';
 import { StubTokenVerifier } from '../src/auth/verifier.ts';
 import { createPool, hasDatabase } from '../src/db/pool.ts';
 import { PostgresStore } from '../src/store/postgres-store.ts';
@@ -161,7 +162,9 @@ describe('PostgresStore', { skip: hasDatabase(process.env) ? false : 'DATABASE_U
     await store.setLiked('u2', 'mine', true);
     await store.markHeard('u2', 'mine');
 
-    assert.equal(await store.deleteMemo('u1', 'mine'), true);
+    const removed = await store.deleteMemo('u1', 'mine');
+    assert.ok(removed, 'delete returned null');
+    assert.equal(removed!.length, 2, 'expected the memo audio and its reply audio');
 
     for (const table of ['comments', 'likes', 'heard']) {
       const { rows } = await pool!.query(`SELECT count(*)::int AS n FROM ${table}`);
@@ -175,7 +178,7 @@ describe('PostgresStore', { skip: hasDatabase(process.env) ? false : 'DATABASE_U
     await store.ensureUser('u2', 'joseph');
     await seed('theirs', 'u2', 10);
 
-    assert.equal(await store.deleteMemo('u1', 'theirs'), false);
+    assert.equal(await store.deleteMemo('u1', 'theirs'), null);
     assert.equal((await store.ownMemos('u2')).length, 1);
   });
 
@@ -222,7 +225,7 @@ describe('PostgresStore', { skip: hasDatabase(process.env) ? false : 'DATABASE_U
     await seed('m', 'u2', 10);
     await store.setLiked('u1', 'm', true);
 
-    const app = buildApp({ store, verifier: new StubTokenVerifier(), now: () => NOW });
+    const app = buildApp({ store, audio: tempAudioStore(), verifier: new StubTokenVerifier(), now: () => NOW });
     const raw = (await app.inject({ method: 'GET', url: '/v1/feed', headers: auth })).body;
 
     assert.ok(!/_count"/.test(raw), `a count leaked onto the wire: ${raw}`);
