@@ -44,6 +44,67 @@ match — not because anything was wrong with it, but because a lot of it
 - **E2EE:** libsignal (prebuilt bindings).
 - **Auth:** Firebase Auth.
 
+## Running it
+
+```
+cp .env.example .env
+npm install
+npm run db:up      # local Postgres in Docker
+npm run migrate    # applies migrations/
+npm run dev        # http://localhost:8080
+npm test           # 25 tests, no database needed
+```
+
+Tests run against an in-memory store rather than Postgres, deliberately — they
+cover feed behaviour (does the stream end, can one author fill a page, does a
+skipped memo come back), and a suite that needs a database is a suite that
+stops being run. The in-memory store implements the same ordering and cursor
+rules as the real one, so those tests are meaningful rather than decorative.
+
+`HANDLING_PROTOCOLS.md` still applies for real database work: local instance
+with seed data, never the production VPS.
+
+## Decisions that were open, and how they are settled
+
+`android/core/API_CONTRACT.md` listed four questions for whoever wrote this.
+Answers, now implemented:
+
+| Question | Answer |
+| --- | --- |
+| Is the cursor opaque? | Yes — base64url keyset on `(posted_at, id)`. Not an offset; the feed changes under the reader. |
+| Do own memos carry human-readable removal reasons? | Yes, stored as prose. Moderation wording changes without an app release. |
+| What audio container? | Client uploads AAC/MP4; the server transcodes for whisper.cpp. The client should not have to know what the ASR wants. |
+| Rate limiting? | Planned as `429` + `Retry-After`. Not implemented yet. |
+
+## Still open — these need a decision, not code
+
+- **How the feed is ordered.** `BRIEF.md` forbids a ranking algorithm, but
+  "not ranked" is not "no rule". The default implemented in
+  `src/feed/ordering.ts` is: newest first, over memos you have not heard, in a
+  seven-day window, **one memo per author per page**. That last rule is the
+  closest thing here to ranking — it demotes real memos for reasons the poster
+  did not choose. It exists because on a small network one person's ten memos
+  would otherwise be everyone's entire day. It is a single config value and can
+  be switched off. **This is Said's call, not an engineering default.**
+- **Voice retention.** Non-negotiable #7 makes voice biometric data. How long
+  is audio kept? Is it encrypted at rest? Does a removed memo's audio get
+  destroyed or only hidden? The schema deletes a user's audio on account
+  deletion and nothing else is decided. This is policy and it is the most
+  important open question here.
+- **Where moderation actually happens.** `android/README.md` cuts the in-app
+  queue, so reports go somewhere else — a CLI, a small page, direct SQL. That
+  choice changes what this service needs to expose.
+- **Firebase project.** Unchosen. `TokenVerifier` is an interface with a stub
+  behind it; the stub refuses to run in production.
+- **VPS specs.** whisper.cpp model size depends on available CPU and RAM.
+
 ## Status
 
-Design stage. No implementation yet.
+**API implemented against an in-memory store; Postgres store is the next
+piece.** Schema, migration runner and the `Store` interface all exist —
+swapping is one line in `src/server.ts`. Running on memory first means the
+Android client can be pointed at a real HTTP server today, which is worth more
+right now than persistence nobody is reading.
+
+Not implemented yet: ASR (whisper.cpp), audio upload and object storage,
+rate limiting, and the Firebase verifier.

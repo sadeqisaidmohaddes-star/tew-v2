@@ -4,6 +4,13 @@ Last updated: 2026-08-09
 
 ## Where things actually are
 
+Backend: **API implemented** (Node/Fastify + TypeScript). Auth, feed with
+keyset cursors, like/skip, comments, report, own-memos, appeal — matching
+`android/core/API_CONTRACT.md`. Postgres schema and migration runner exist;
+the service currently runs on an in-memory store, so swapping is one line in
+`src/server.ts`. 25 tests, no database required to run them. Not implemented:
+ASR, audio upload/storage, rate limiting, the Firebase verifier.
+
 Android: **all six modules implemented.** `IMPLEMENTATION.md`'s build order
 is complete, plus the two gaps that were open after it — route coverage and
 recording. The app builds, installs, and runs end to end against in-memory
@@ -31,7 +38,8 @@ Toolchain unchanged: AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10, Compose BOM
 - CI runs `backend` and `android` jobs on PRs into `dev`/`prod`, plus on
   merges into `dev` and manual dispatch, and publishes the debug APK as a
   **`tew-debug-apk`** artifact (30-day retention) so a tester needs no
-  toolchain. `backend` still no-ops — no `backend/package.json`.
+  toolchain. The `backend` job now runs for real — `backend/package.json`
+  exists, so lint, typecheck, test and build all execute.
 
 ## Blocked on
 
@@ -70,9 +78,18 @@ Toolchain unchanged: AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10, Compose BOM
 - **Firebase project / Google Sign-In** — no account chosen. `StubAuthSession`
   satisfies the `AuthSession` interface in the meantime. Swapping is two lines
   in `app/TewContainer.kt` and no feature-module change.
-- **Backend** — design-stage. `core/API_CONTRACT.md` is the Android client's
-  **proposal**, not an agreed contract, with four open questions listed for
-  whoever writes the backend. In-memory fakes stand in so the app runs.
+- **Backend Postgres store** — schema and migrations written, store interface
+  settled, implementation pending. The four open questions in
+  `core/API_CONTRACT.md` are now answered in `backend/README.md`.
+- **Feed ordering is an unanswered product question.** The backend defaults to
+  newest-first over unheard memos in a seven-day window, one memo per author
+  per page. That last rule is the closest thing in the codebase to ranking —
+  it is one config value, it can be switched off, and it needs Said's decision
+  rather than an engineering default.
+- **Voice retention policy.** Non-negotiable #7 makes voice biometric data.
+  Retention period, encryption at rest, and whether a removed memo's audio is
+  destroyed or merely hidden are all undecided. The most important open
+  question on the backend side.
 - **Postgres hosting** — self-hosted on Said's VPS, managed by another
   session. No provisioning done, no blocker.
 - **Release-signing keystore** — undecided, blocks the first real GitHub
