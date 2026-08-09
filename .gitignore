@@ -11,3 +11,10 @@ android/*.iml
 android/**/*.iml
 android/captures/
 android/.cxx/
+
+# Node / backend
+# At the repo root rather than only in backend/.gitignore: these get created by
+# running the backend, and a checkout of any other branch would otherwise show
+# them as untracked noise.
+node_modules/
+backend/dist/
