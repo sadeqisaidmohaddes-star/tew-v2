@@ -10,6 +10,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -93,7 +94,16 @@ class Media3PlaybackSession(
                         ?: emptyMap()
                     val http = DefaultHttpDataSource.Factory()
                         .setDefaultRequestProperties(properties)
-                    builder.setMediaSourceFactory(DefaultMediaSourceFactory(http))
+                    // Wrapped in DefaultDataSource rather than used directly.
+                    // An HTTP factory on its own can only open http and https,
+                    // and not every URI the app plays is remote: the composer
+                    // previews a `file://` recording before it is posted, and
+                    // the built-in feed plays `rawresource://` clips bundled in
+                    // the APK. Handing Media3 the bare HTTP factory made both
+                    // fail the moment a server address was set.
+                    builder.setMediaSourceFactory(
+                        DefaultMediaSourceFactory(DefaultDataSource.Factory(appContext, http)),
+                    )
                 }
             }
             .build()
