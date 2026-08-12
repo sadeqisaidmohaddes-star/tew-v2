@@ -126,12 +126,35 @@ Worth knowing before changing anything:
 - **No timed or precise gestures.** Direction-only swipes, no velocity
   threshold, no double-tap, no long-press — non-negotiable #6.
 
+## The agreed plan, in order
+
+1. **Cut `v0.1.0-test1`** on `dev`. The Release workflow builds the APK and
+   attaches it to a prerelease — no GitHub sign-in and no zip, unlike an
+   Actions artifact, which matters when the installer is using a screen
+   reader on a phone.
+   ```
+   git fetch origin && git tag v0.1.0-test1 origin/dev && git push origin v0.1.0-test1
+   ```
+   *Claude Code cannot do this step.* Releases, workflow dispatch, tag push
+   and tag-ref creation are all refused for that session type — four separate
+   403s, none of them about repo state.
+2. **Run the device session.** ~45 minutes: the gesture spike, then the app.
+3. **Record what was found here**, in this file. Said's third approval
+   condition, and `HANDLING_PROTOCOLS.md`'s rule that an unwritten result does
+   not survive the session it was found in.
+4. **Then promote `dev` → `prod`** and tag `v0.1.0`.
+
+Promotion is deliberately last. `GITHUB_WORKFLOW.md` requires `dev` to be
+stable — *"meaning the thing you just merged actually works, not just that it
+built"* — and nothing here has run on a phone. A release cut from `prod`
+before that would be a version number attached to something nobody has used.
+
 ## Next step
 
-**Run the spike, and run the app.** Both need the same thing: a phone, the
-`tew-debug-apk` artifact from the latest CI run on `dev`, and someone to use
-them. The spike answers the card-deck question; the app itself has never been
-seen running by anyone.
+**Step 1 above: cut the tag.** Everything after it is waiting on a phone.
+
+The spike answers the card-deck question. The app itself has never been seen
+running by anyone. Both come from the same APK.
 
 The prototype is now feature-complete against `android/README.md`'s scope for
 this build, minus the two deliberate cuts (no DMs, no in-app moderator queue).
