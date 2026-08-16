@@ -1,15 +1,17 @@
 # STATE
 
-Last updated: 2026-08-09
+Last updated: 2026-08-16
 
 ## Where things actually are
 
 Backend: **API implemented** (Node/Fastify + TypeScript). Auth, feed with
 keyset cursors, like/skip, comments, report, own-memos, appeal — matching
-`android/core/API_CONTRACT.md`. Postgres schema and migration runner exist;
-the service currently runs on an in-memory store, so swapping is one line in
-`src/server.ts`. 25 tests, no database required to run them. Not implemented:
-ASR, audio upload/storage, rate limiting, the Firebase verifier.
+`android/core/API_CONTRACT.md` — plus multipart audio upload, authenticated
+audio serving, and deletion honouring the retention rule. `PostgresStore` is
+wired and selected by `DATABASE_URL` (`src/server.ts:20`); the in-memory store
+is the fallback and what the tests run against. 34 tests without a database,
+46 with one. Not implemented: ASR/transcripts, rate limiting, the Firebase
+verifier.
 
 **The app talks to the backend.** Set a server address in the app (Moderator
 controls → Server) and it uses the real API, real playback over HTTP and real
@@ -47,37 +49,95 @@ Toolchain unchanged: AGP 9.3.0, Gradle 9.6.1, Kotlin 2.4.10, Compose BOM
   toolchain. The `backend` job now runs for real — `backend/package.json`
   exists, so lint, typecheck, test and build all execute.
 
-## Blocked on
+## The device session — 2026-08-16
 
-- **The TalkBack spike has still not been run.** Merged in PR #7, ready to
-  install, never executed with TalkBack on. No emulator is possible in the
-  build sandbox (`/dev/kvm` absent, no `vmx`/`svm`), and TalkBack ships with
-  Google Play services. **Someone with an Android phone needs to run the
-  three passes in `feature-carddeck/SPIKE.md`.** Debug builds now show a
-  "TEW gesture spike" launcher icon, so this is a tap, not an adb command.
-- **Nothing has been seen running.** `HANDLING_PROTOCOLS.md` is explicit that
-  a change to a feature module isn't done until it's been seen running once,
-  for real. That has not happened for any screen in this build. Everything
-  below is "compiles and is unit-tested", not "works".
-- **No latency measured** against the under-100ms rule, for the same reason.
+Run by Taha on a real phone, ~7.5 minutes, screen-recorded (video only, no
+audio track — the sound findings below are the tester's report, not something
+the recording can be re-checked against). This is the first time any of this
+has been seen running. It clears `HANDLING_PROTOCOLS.md`'s "seen running
+once, for real" bar for every screen listed here.
+
+**Reached and usable:** radio timeline, card deck, onboarding (all five
+steps), report reasons, record-a-reply, sign-in, the server address screen,
+and the moderator feed toggle.
+
+**Works:**
+
+- **TalkBack reads everything.** Every screen, with focus order and labels
+  intact.
+- **The screen-reader route works.** The custom actions menu opens and
+  offers "Report this memo" — that is the third leg of non-negotiable #5,
+  confirmed on hardware rather than inferred from a unit test.
+- **The in-app narrator speaks.**
+- **Memo audio plays.** "Playing. 4 seconds left." and "Paused." both
+  observed on the radio screen.
+- **The card deck's own gestures work.** The last stretch of the session ran
+  with TalkBack switched off, driven entirely by the deck's swipes.
+- **Recording captures.** "Recording. 13 seconds so far." — `MediaRecorder`
+  and the microphone permission flow have now run for real.
+
+**Broken — the one bug the session found:**
+
+- **The three voices collide.** TalkBack, the in-app narrator and the memo
+  audio all speak at once, over each other. Every one of them works; nothing
+  arbitrates between them. Diagnosis below.
+
+**Not measured:** latency against the under-100ms rule. The session was a
+functional pass, not a timed one.
+
+## The clashing voices — root cause
+
+Worth writing down, because the code contains a comment asserting the
+opposite and that comment is why this reached a device.
+
+There are three sound sources and no single owner of "who is speaking":
+
+| Source | Audio usage | What it does about focus |
+| --- | --- | --- |
+| Memo audio, `Media3PlaybackSession.kt:71` | `USAGE_MEDIA` | Requests focus, `handleAudioFocus = true` |
+| In-app narrator, `Narrator.kt:68` | TTS default — `USAGE_MEDIA` | **Requests none.** Mixes straight over the memo |
+| TalkBack | `USAGE_ASSISTANCE_ACCESSIBILITY` | Ducks other apps only if the user has turned on TalkBack's own "audio ducking" setting, which is off by default |
+
+So both collisions are explained:
+
+- **Screen reader off:** the narrator speaks while a memo plays. Two voices,
+  full volume, guaranteed. `handleAudioFocus = true` does not help — it
+  makes *our* player react when *something else* takes focus, and the
+  narrator never takes any.
+- **Screen reader on:** `Narrator.shouldNarrate` (`Narrator.kt:49`) correctly
+  goes quiet, so the narrator is not the problem here — the memo is. It keeps
+  playing at full volume underneath TalkBack's speech, because TalkBack does
+  not take audio focus by default and there is no public API for "TalkBack is
+  speaking right now".
+
+The comment at `Media3PlaybackSession.kt:27-30` claims focus handling means
+"announcements duck the memo instead of colliding with it". That is
+backwards, and it is the kind of claim that only fails on a device.
 
 ## Known gaps in the MVP — deliberate, not forgotten
 
-- **Route coverage is complete (3 of 3), but untested on hardware.** Media
-  controls (headset/lock-screen via `MediaSession`), voice (press-to-talk),
-  and the screen-reader actions menu. All three funnel through one
-  `FeedCommand` enum so none can drift. Headset buttons and speech
-  recognition are the two things least verifiable without a device.
+- **Route coverage is complete (3 of 3); the screen-reader leg is now
+  confirmed on hardware.** Media controls (headset/lock-screen via
+  `MediaSession`), voice (press-to-talk), and the screen-reader actions
+  menu. All three funnel through one `FeedCommand` enum so none can drift.
+  The actions menu was exercised in the 2026-08-16 session. **Headset
+  buttons and speech recognition still have not been.**
 - **Voice is press-to-talk, never always-listening.** A product decision, not
   a limitation — non-negotiable #7 makes voice biometric data, and an open
   mic in this app would capture a private space rather than a command.
-- **Recording exists but has never captured real audio.** `MediaRecorder`
-  behaviour, microphone permission flow and file upload are all unexercised
-  outside unit tests.
+- **Recording captures; the upload leg is still unproven.** `MediaRecorder`
+  and the microphone permission flow ran in the 2026-08-16 session. That
+  session used the built-in sample memos, so posting the recording to a
+  server has still only been exercised in tests.
 - **The card deck does not depend on the spike's answer.** Custom
   accessibility actions are the primary route; swipes are an enhancement for
   non-screen-reader users. If the spike fails, nothing needs rewriting. If it
   passes, swipes become a third route — an addition, not a redesign.
+- **The formal TalkBack spike still has not been run.** `SPIKE.md`'s three
+  passes were not part of the 2026-08-16 session. What that session did show
+  is that the deck's swipes were used with TalkBack switched off, and the
+  actions menu was used with it on — which is the app working as designed,
+  not an answer to the spike's question.
 
 ## Deliberately deferred, not forgotten
 
@@ -128,34 +188,70 @@ Worth knowing before changing anything:
 
 ## The agreed plan, in order
 
-1. **Cut `v0.1.0-test1`** on `dev`. The Release workflow builds the APK and
-   attaches it to a prerelease — no GitHub sign-in and no zip, unlike an
-   Actions artifact, which matters when the installer is using a screen
-   reader on a phone.
-   ```
-   git fetch origin && git tag v0.1.0-test1 origin/dev && git push origin v0.1.0-test1
-   ```
-   *Claude Code cannot do this step.* Releases, workflow dispatch, tag push
-   and tag-ref creation are all refused for that session type — four separate
-   403s, none of them about repo state.
-2. **Run the device session.** ~45 minutes: the gesture spike, then the app.
-3. **Record what was found here**, in this file. Said's third approval
-   condition, and `HANDLING_PROTOCOLS.md`'s rule that an unwritten result does
-   not survive the session it was found in.
-4. **Then promote `dev` → `prod`** and tag `v0.1.0`.
+1. ~~**Cut `v0.1.0-test1`**~~ — done 2026-08-09. Note the tag points at
+   `7924cc6`, which predates PR #31 (debug signing) and #32 (audio inside the
+   APK), so the published prerelease is **not** what was tested. The
+   2026-08-16 session ran a newer build off `dev`.
+2. ~~**Run the device session.**~~ — done 2026-08-16.
+3. ~~**Record what was found**~~ — done, above.
+4. **Fix the clashing voices.** New, and it comes before promotion. This app
+   is voice-first for blind users; three voices at once is not a rough edge,
+   it is the product not working. **Written and on PR #34** — see below — but
+   not yet heard on a phone, which is what actually settles it.
+5. **Then promote `dev` → `prod`** and tag `v0.1.0`.
 
 Promotion is deliberately last. `GITHUB_WORKFLOW.md` requires `dev` to be
 stable — *"meaning the thing you just merged actually works, not just that it
-built"* — and nothing here has run on a phone. A release cut from `prod`
-before that would be a version number attached to something nobody has used.
+built"*. It has now been seen working, with one bug that goes to the heart of
+what the app is for.
+
+## Step 4, one voice at a time — the fix, on PR #34
+
+The rule the fix implements: **audio starts only after whatever is speaking
+has stopped.**
+
+1. **The narrator says when it has finished, and that is what starts the
+   memo.** `Narrator.say` takes a callback fired from
+   `UtteranceProgressListener.onDone`. An utterance interrupted by a newer one
+   has its callback *dropped* rather than fired, so a card the listener has
+   already left never starts playing behind them.
+2. **Under a screen reader nothing starts on its own.** Considered and
+   rejected: starting the memo quietly and raising it after a beat. There is
+   no API for "TalkBack has finished speaking", so that is a guess at a
+   duration, and it is wrong for anyone running speech at a rate other than
+   the one guessed for — which is most people who rely on it. The feed
+   announces the memo and waits to be asked, and the announcement says so.
+3. **Nothing plays underneath onboarding.** The feed still loads during it;
+   only the sound waits.
+4. **The transcript is no longer spoken.** It duplicated the recording word
+   for word. It stays on the card as text.
+
+**What this costs, so it is not discovered later:** under a screen reader the
+radio timeline stops being hands-off — auto-advance announces the next memo
+and waits. That is the feed model's whole premise, given up under TalkBack. A
+test is named for it so it is not quietly undone. It also means that for
+screen-reader testers the radio and card-deck models are now closer together
+than they were, which the usability comparison has to account for.
+
+Not on hardware yet. The fix is about *when* sound starts, and the recording
+from the last session has no audio track, so the next device pass is what
+confirms it.
 
 ## Next step
 
-**Step 1 above: cut the tag.** Everything after it is waiting on a phone.
+**Run the device session again**, once #33 and #34 are merged and a fresh
+build is installed. Two things to listen for, in this order:
 
-The spike answers the card-deck question. The app itself has never been seen
-running by anyone. Both come from the same APK.
+1. **One voice at a time**, with TalkBack on and with it off — the deck, the
+   radio, and onboarding.
+2. **Whether waiting to press play is tolerable** on the radio timeline under
+   TalkBack, or whether it costs that feed model too much to be worth keeping
+   in the comparison. That is a judgement only a listener can make.
 
-The prototype is now feature-complete against `android/README.md`'s scope for
-this build, minus the two deliberate cuts (no DMs, no in-app moderator queue).
-What it has never had is contact with a real device or a real backend.
+Then latency against the under-100ms rule, which the first session did not
+measure.
+
+The prototype is feature-complete against `android/README.md`'s scope for this
+build, minus the two deliberate cuts (no DMs, no in-app moderator queue), and
+it has now had contact with a real device. What it has not had is contact with
+a real backend: the 2026-08-16 session ran on the built-in sample memos.
