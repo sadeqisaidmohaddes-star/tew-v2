@@ -31,11 +31,15 @@ interface FeedRepository {
 }
 
 /**
- * Reporting a memo, and seeing what happened to your own.
+ * Reporting a memo, and everything to do with your own.
  *
  * Non-negotiable #8: moderation is visible and appealable. `android/README.md`
  * cuts the moderator's review queue from this build but keeps both of these —
  * they are the parts that face the person affected, and they are not optional.
+ *
+ * [deleteMemo] is here rather than on [FeedRepository] next to `postMemo`
+ * because this is the "your own memos" repository in practice — [myMemos] is
+ * the list the delete acts on, and the profile screen already has this one.
  */
 interface ModerationRepository {
 
@@ -45,4 +49,13 @@ interface ModerationRepository {
     suspend fun myMemos(): TewResult<List<Memo>>
 
     suspend fun appeal(memoId: String, text: String): TewResult<Unit>
+
+    /**
+     * Delete your own memo. The recording is destroyed, not hidden.
+     *
+     * `STATE.md`: "Voice retention: until the person deletes it." This is the
+     * half of that promise the app is responsible for — the backend has always
+     * honoured it, and until this landed nothing in the app could ask.
+     */
+    suspend fun deleteMemo(memoId: String): TewResult<Unit>
 }

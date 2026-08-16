@@ -148,9 +148,13 @@ backwards, and it is the kind of claim that only fails on a device.
 - **Backend Postgres store** — schema and migrations written, store interface
   settled, implementation pending. The four open questions in
   `core/API_CONTRACT.md` are now answered in `backend/README.md`.
-- **Android delete UI.** The backend honours the retention rule; no screen in
-  the app calls it. Until that lands, "you can delete your audio" is only half
-  true.
+- **Account deletion has no screen.** Deleting a *memo* now works from the
+  profile — a Delete button per memo, behind a confirmation, calling the
+  backend route that destroys the recording. Deleting your whole account does
+  not: `DELETE /v1/me` exists on the backend and nothing in the app calls it.
+  So "you can delete your audio" is now true one memo at a time, and not yet
+  true all at once. `android/README.md` never scoped account deletion into
+  this build, so this is a decision to make rather than an oversight to fix.
 - **Media3 reads the auth token once**, when the player is first created.
   Fine for the stub session, whose token never changes. When Firebase lands
   and tokens expire, this needs a DataSource that re-reads per request or
