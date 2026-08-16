@@ -41,6 +41,21 @@ data class RadioUiState(
 class RadioViewModel(
     private val feedRepository: FeedRepository,
     private val playbackSession: PlaybackSession,
+    /**
+     * Whether a screen reader is driving the screen right now.
+     *
+     * When it is, memos stop starting on their own — including on
+     * auto-advance. That is a real cost to this feed model, whose whole
+     * premise is hands-off listening, and it is deliberate: the 2026-08-16
+     * device session found each memo starting on top of TalkBack's
+     * announcement of it, and Android offers no way to know when TalkBack has
+     * finished speaking. Guessing at a delay would be wrong for anyone running
+     * speech at a rate other than the one guessed for. See `STATE.md`.
+     *
+     * A function rather than a value because the user can toggle TalkBack
+     * mid-session without leaving the app.
+     */
+    private val screenReaderActive: () -> Boolean = { false },
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(RadioUiState())
@@ -78,11 +93,15 @@ class RadioViewModel(
                         endOfStream = memos.isEmpty() && result.value.isLastPage,
                         announcement = if (memos.isEmpty()) {
                             EMPTY_FEED
+                        } else if (screenReaderActive()) {
+                            "${describePosition(0, memos.size)} Press play to start."
                         } else {
                             "Playing memos. ${describePosition(0, memos.size)}"
                         },
                     )
-                    memos.firstOrNull()?.let { playbackSession.play(it.id, it.audioUrl) }
+                    if (!screenReaderActive()) {
+                        memos.firstOrNull()?.let { playbackSession.play(it.id, it.audioUrl) }
+                    }
                 }
 
                 is TewResult.Failure -> _uiState.value = _uiState.value.copy(
@@ -157,14 +176,27 @@ class RadioViewModel(
         }
     }
 
+    /**
+     * Move to [index] and start it — unless a screen reader is running, in
+     * which case the memo is announced and waits to be started.
+     *
+     * Under TalkBack this is what turns auto-advance into announce-and-wait.
+     * The alternative is what the device session heard: the next memo talking
+     * underneath TalkBack reading out which memo it is.
+     */
     private fun playAt(index: Int) {
         val state = _uiState.value
         val memo = state.memos.getOrNull(index) ?: return
+        val underScreenReader = screenReaderActive()
         _uiState.value = state.copy(
             index = index,
-            announcement = describePosition(index, state.memos.size),
+            announcement = if (underScreenReader) {
+                "${describePosition(index, state.memos.size)} Press play."
+            } else {
+                describePosition(index, state.memos.size)
+            },
         )
-        playbackSession.play(memo.id, memo.audioUrl)
+        if (!underScreenReader) playbackSession.play(memo.id, memo.audioUrl)
     }
 
     /**
@@ -197,6 +229,16 @@ class RadioViewModel(
     }
 
     fun togglePlayPause() {
+        // Under a screen reader the feed announces a memo and waits, so
+        // nothing is loaded to resume — this press is what starts it. Without
+        // this the play button is dead for exactly the people the feed is for.
+        val memo = _uiState.value.current
+        if (playbackSession.state.value.memoId == null && memo != null) {
+            playbackSession.play(memo.id, memo.audioUrl)
+            announce("Playing.")
+            return
+        }
+
         val playing = playbackSession.state.value.isPlaying
         if (playing) playbackSession.pause() else playbackSession.resume()
         announce(if (playing) "Paused." else "Playing.")

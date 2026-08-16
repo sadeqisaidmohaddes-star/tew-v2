@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.LocalActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
+import org.teww.tew.core.accessibility.screenReaderActive
 import org.teww.tew.core.auth.AuthState
 import org.teww.tew.core.model.Memo
 import org.teww.tew.feature.account.AccountViewModel
@@ -334,10 +335,16 @@ private fun accountViewModel(container: TewContainer): AccountViewModel =
     }
 
 @Composable
-private fun radioViewModel(container: TewContainer): RadioViewModel =
-    viewModel(key = "radio") {
-        RadioViewModel(container.feedRepository, container.playbackSession)
+private fun radioViewModel(container: TewContainer): RadioViewModel {
+    val context = LocalContext.current.applicationContext
+    return viewModel(key = "radio") {
+        RadioViewModel(
+            container.feedRepository,
+            container.playbackSession,
+            screenReaderActive = { screenReaderActive(context) },
+        )
     }
+}
 
 /**
  * Keyed by what is being replied to, so moving from one memo's reply to
@@ -358,7 +365,13 @@ private fun recordViewModel(
 }
 
 @Composable
-private fun cardDeckViewModel(container: TewContainer): CardDeckViewModel =
-    viewModel(key = "carddeck") {
-        CardDeckViewModel(container.feedRepository, container.playbackSession)
+private fun cardDeckViewModel(container: TewContainer): CardDeckViewModel {
+    val context = LocalContext.current.applicationContext
+    return viewModel(key = "carddeck") {
+        CardDeckViewModel(
+            container.feedRepository,
+            container.playbackSession,
+            screenReaderActive = { screenReaderActive(context) },
+        )
     }
+}
