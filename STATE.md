@@ -198,16 +198,25 @@ Worth knowing before changing anything:
    2026-08-16 session ran a newer build off `dev`.
 2. ~~**Run the device session.**~~ — done 2026-08-16.
 3. ~~**Record what was found**~~ — done, above.
-4. **Fix the clashing voices.** New, and it comes before promotion. This app
-   is voice-first for blind users; three voices at once is not a rough edge,
-   it is the product not working. **Written and on PR #34** — see below — but
-   not yet heard on a phone, which is what actually settles it.
-5. **Then promote `dev` → `prod`** and tag `v0.1.0`.
+4. ~~**Fix the clashing voices.**~~ — merged 2026-08-16, PR #34. Not yet heard
+   on a phone, which is what actually settles it.
+5. ~~**Promote `dev` → `prod`.**~~ — merged 2026-08-16, PR #35. The first
+   promotion this repo has had; `prod` held nothing but governance docs until
+   now. Per-memo delete (PR #36) landed just before it, so `prod` and `dev`
+   are identical.
+6. **Tag `v0.1.0`** so there is a downloadable APK to test.
+   ```
+   git fetch origin && git tag v0.1.0 origin/prod && git push origin v0.1.0
+   ```
+7. **The second device session.** See "Next step".
 
-Promotion is deliberately last. `GITHUB_WORKFLOW.md` requires `dev` to be
-stable — *"meaning the thing you just merged actually works, not just that it
-built"*. It has now been seen working, with one bug that goes to the heart of
-what the app is for.
+Promotion was meant to be last, and it was taken one step early on purpose.
+`GITHUB_WORKFLOW.md` asks that `dev` be stable — *"meaning the thing you just
+merged actually works, not just that it built"* — and the voice fix has only
+ever been unit-tested. Taha's call, made so that a versioned build exists to
+test against rather than testing an untagged branch. Worth remembering if
+`v0.1.0` turns out to need a `v0.1.1` quickly: that is the expected shape of
+this, not a surprise.
 
 ## Step 4, one voice at a time — the fix, on PR #34
 
@@ -243,17 +252,27 @@ confirms it.
 
 ## Next step
 
-**Run the device session again**, once #33 and #34 are merged and a fresh
-build is installed. Two things to listen for, in this order:
+**Tag `v0.1.0`, then run the second device session on that build.** Everything
+in the repo is now waiting on a phone; nothing else is blocked on code.
+
+What to listen for, in this order:
 
 1. **One voice at a time**, with TalkBack on and with it off — the deck, the
-   radio, and onboarding.
+   radio, and onboarding. This is the whole reason for the build.
 2. **Whether waiting to press play is tolerable** on the radio timeline under
    TalkBack, or whether it costs that feed model too much to be worth keeping
-   in the comparison. That is a judgement only a listener can make.
+   in the comparison. A judgement only a listener can make, and the one most
+   likely to send the design back a step.
+3. **The delete confirmation** under a screen reader — whether "Delete" and
+   "Keep it" are actually distinguishable heard rather than read, and whether
+   the dialog announces itself before a finger lands on a button.
 
 Then latency against the under-100ms rule, which the first session did not
 measure.
+
+And write what is found back into this file. The first session's results only
+survived because that happened; `HANDLING_PROTOCOLS.md` is right that an
+unwritten result does not outlive the session it was found in.
 
 The prototype is feature-complete against `android/README.md`'s scope for this
 build, minus the two deliberate cuts (no DMs, no in-app moderator queue), and
