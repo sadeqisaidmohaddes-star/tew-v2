@@ -44,15 +44,26 @@ tew-v2/
     ├── feature-carddeck/   (:feature-carddeck — swipeable card screen,
     │                        gesture handling, onboarding, on-device
     │                        narrator)
+    ├── feature-account/    (:feature-account — sign-in, minimal profile,
+    │                        report + appeal. Shared by both feed models,
+    │                        doesn't belong to either.)
+    ├── feature-record/     (:feature-record — recording and posting a
+    │                        memo, and recording a voice reply. Same
+    │                        reasoning as :feature-account — both feed
+    │                        models need it, neither owns it. The capture
+    │                        itself lives in :core.)
     └── app/                (:app — thin shell, DI wiring, the
                               moderator-only screen-toggle for the
                               usability test)
 ```
 
 New code goes in the module whose boundary it belongs to. If you're
-importing Retrofit, Media3, or a repository type from inside
-`feature-radio` or `feature-carddeck`, that's a boundary violation — it
-belongs in `:core`.
+importing Retrofit, Media3, or a repository type from inside a feature
+module, that's a boundary violation — it belongs in `:core`. If you're
+building sign-in, profile, or report/appeal UI inside `feature-radio` or
+`feature-carddeck`, that's also a boundary violation — it belongs in
+`:feature-account`, so it isn't duplicated in both and doesn't bias the
+comparison between them.
 
 ## Tech stack
 
@@ -62,7 +73,8 @@ belongs in `:core`.
   managed/serverless DB)
 - Auth: Firebase Auth (Google Sign-In)
 - ASR: whisper.cpp, local CPU subprocess
-- E2EE (DMs): libsignal
+- E2EE (DMs): libsignal — backend-only for now; no DM screen ships in the
+  Android app this phase
 - Explicitly out of scope for this phase: server-side TTS, IVR/Twilio,
   anything web-only
 
@@ -73,6 +85,8 @@ belongs in `:core`.
 - Narration (card-deck only): Android's native `TextToSpeech` — not a
   server round-trip
 - Networking: Retrofit against the backend's cursor-paginated feed API
+- Not in this build: DMs, and any in-app moderator review queue (reports
+  get submitted from the app; reviewing them happens outside it for now)
 
 ## Build order
 
@@ -82,10 +96,10 @@ belongs in `:core`.
    depends on — find out early if it holds up.
 2. `:core` — auth, API client, playback session. Nothing depends on this
    being polished, only correct; both feature modules block on it.
-3. `feature-radio` and `feature-carddeck` can then proceed in parallel
-   (see `HANDLING_PROTOCOLS.md`'s multi-agent section) — they don't depend
-   on each other, only on `:core`.
-4. `:app` wiring + the moderator toggle, once both features exist.
+3. `feature-radio`, `feature-carddeck`, and `feature-account` can then
+   proceed in parallel (see `HANDLING_PROTOCOLS.md`'s multi-agent
+   section) — none of them depend on each other, only on `:core`.
+4. `:app` wiring + the moderator toggle, once all three features exist.
 
 ## Process
 
