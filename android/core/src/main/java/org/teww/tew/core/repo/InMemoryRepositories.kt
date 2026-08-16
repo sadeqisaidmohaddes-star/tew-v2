@@ -149,6 +149,13 @@ class InMemoryModerationRepository(
         }
         return TewResult.Ok(Unit)
     }
+
+    /** Gone, not flagged — the same thing the real one does to the audio. */
+    override suspend fun deleteMemo(memoId: String): TewResult<Unit> {
+        delay(latencyMs)
+        mine.removeAll { it.id == memoId }
+        return TewResult.Ok(Unit)
+    }
 }
 
 /**

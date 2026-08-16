@@ -89,6 +89,30 @@ class AccountViewModel(
         }
     }
 
+    /**
+     * Delete one of your own memos.
+     *
+     * The list is trimmed here rather than reloaded from the server. Two
+     * reasons: the server has already confirmed, so a round trip would only
+     * add latency to something that is done; and `loadMyMemos` would overwrite
+     * the announcement with a memo count, replacing the one thing the person
+     * needs to hear — that the recording is actually gone.
+     */
+    fun deleteMemo(memoId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(announcement = "Deleting that memo.")
+            when (val result = moderationRepository.deleteMemo(memoId)) {
+                is TewResult.Ok -> _uiState.value = _uiState.value.copy(
+                    myMemos = _uiState.value.myMemos.filterNot { it.id == memoId },
+                    announcement = "Deleted. That recording is gone.",
+                )
+
+                is TewResult.Failure -> _uiState.value =
+                    _uiState.value.copy(announcement = result.spoken)
+            }
+        }
+    }
+
     fun appeal(memoId: String, text: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(announcement = "Sending your appeal.")

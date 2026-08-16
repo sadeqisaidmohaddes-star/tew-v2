@@ -75,6 +75,17 @@ interface TewApi {
     @GET("v1/me/memos")
     suspend fun myMemos(): Response<MemoListDto>
 
+    /**
+     * Delete one of your own memos, and the recording with it.
+     *
+     * `STATE.md`'s retention decision is "until the person deletes it" — no
+     * expiry, no soft delete, no `deleted_at`. The server destroys the audio
+     * rather than hiding it, so there is nothing to undo afterwards. That is
+     * why the screen asks before calling this.
+     */
+    @DELETE("v1/memos/{id}")
+    suspend fun deleteMemo(@Path("id") memoId: String): Response<Unit>
+
     @POST("v1/memos/{id}/appeal")
     suspend fun appeal(
         @Path("id") memoId: String,

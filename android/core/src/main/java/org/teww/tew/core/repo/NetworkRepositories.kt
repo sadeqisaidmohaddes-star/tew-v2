@@ -164,6 +164,9 @@ class NetworkModerationRepository(
 
     override suspend fun appeal(memoId: String, text: String): TewResult<Unit> =
         apiUnit(dispatcher) { api.appeal(memoId, AppealRequest(text)) }
+
+    override suspend fun deleteMemo(memoId: String): TewResult<Unit> =
+        apiUnit(dispatcher) { api.deleteMemo(memoId) }
 }
 
 internal fun ReportReason.wireValue(): String = when (this) {

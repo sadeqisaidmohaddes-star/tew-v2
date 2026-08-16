@@ -2,11 +2,13 @@ package org.teww.tew.feature.account
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -15,6 +17,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -49,6 +54,19 @@ fun ProfileScreen(
 
     LaunchedEffect(Unit) { viewModel.loadMyMemos() }
 
+    // Deleting destroys the recording — there is no undo to offer afterwards,
+    // so the question comes first. Non-negotiable #6 rules out timed or precise
+    // gestures, and this is the same principle applied to consequences: nothing
+    // irreversible happens on one tap.
+    var pendingDelete by remember { mutableStateOf<Memo?>(null) }
+
+    pendingDelete?.let { memo ->
+        DeleteConfirmation(
+            onConfirm = { viewModel.deleteMemo(memo.id); pendingDelete = null },
+            onDismiss = { pendingDelete = null },
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -74,7 +92,11 @@ fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(state.myMemos, key = { it.id }) { memo ->
-                OwnMemoCard(memo = memo, onAppeal = { onAppeal(memo) })
+                OwnMemoCard(
+                    memo = memo,
+                    onAppeal = { onAppeal(memo) },
+                    onDelete = { pendingDelete = memo },
+                )
             }
         }
 
@@ -91,6 +113,7 @@ fun ProfileScreen(
 private fun OwnMemoCard(
     memo: Memo,
     onAppeal: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val spoken = buildString {
         append("Your memo. ")
@@ -114,18 +137,52 @@ private fun OwnMemoCard(
             )
         }
 
-        if (canAppeal(memo)) {
-            // Outside the merged node above so it stays a separately focusable,
-            // separately actionable control rather than being swallowed by the
-            // card's description.
-            TextButton(
-                onClick = onAppeal,
-                modifier = Modifier.padding(start = 8.dp, bottom = 8.dp),
-            ) {
-                Text("Ask for another look")
+        // Outside the merged node above so these stay separately focusable,
+        // separately actionable controls rather than being swallowed by the
+        // card's description.
+        Row(modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)) {
+            if (canAppeal(memo)) {
+                TextButton(onClick = onAppeal) {
+                    Text("Ask for another look")
+                }
+            }
+            TextButton(onClick = onDelete) {
+                Text("Delete")
             }
         }
     }
+}
+
+/**
+ * The question asked before a recording is destroyed.
+ *
+ * Worded so it is unambiguous heard rather than read: "Delete" and "Keep it"
+ * are distinguishable in one word each, where "Cancel" next to "Delete" leaves
+ * a listener working out which one keeps their memo. The consequence is stated
+ * in the body rather than implied by the title, because a screen reader user
+ * may act on the button before the whole dialog has been read out.
+ */
+@Composable
+private fun DeleteConfirmation(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete this memo?") },
+        text = {
+            Text(
+                "The recording will be destroyed. It cannot be brought back, " +
+                    "and anyone who has not heard it never will.",
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Delete") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Keep it") }
+        },
+    )
 }
 
 /**
