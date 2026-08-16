@@ -196,7 +196,8 @@ Worth knowing before changing anything:
 3. ~~**Record what was found**~~ — done, above.
 4. **Fix the clashing voices.** New, and it comes before promotion. This app
    is voice-first for blind users; three voices at once is not a rough edge,
-   it is the product not working.
+   it is the product not working. **Written and on PR #34** — see below — but
+   not yet heard on a phone, which is what actually settles it.
 5. **Then promote `dev` → `prod`** and tag `v0.1.0`.
 
 Promotion is deliberately last. `GITHUB_WORKFLOW.md` requires `dev` to be
@@ -204,27 +205,51 @@ stable — *"meaning the thing you just merged actually works, not just that it
 built"*. It has now been seen working, with one bug that goes to the heart of
 what the app is for.
 
+## Step 4, one voice at a time — the fix, on PR #34
+
+The rule the fix implements: **audio starts only after whatever is speaking
+has stopped.**
+
+1. **The narrator says when it has finished, and that is what starts the
+   memo.** `Narrator.say` takes a callback fired from
+   `UtteranceProgressListener.onDone`. An utterance interrupted by a newer one
+   has its callback *dropped* rather than fired, so a card the listener has
+   already left never starts playing behind them.
+2. **Under a screen reader nothing starts on its own.** Considered and
+   rejected: starting the memo quietly and raising it after a beat. There is
+   no API for "TalkBack has finished speaking", so that is a guess at a
+   duration, and it is wrong for anyone running speech at a rate other than
+   the one guessed for — which is most people who rely on it. The feed
+   announces the memo and waits to be asked, and the announcement says so.
+3. **Nothing plays underneath onboarding.** The feed still loads during it;
+   only the sound waits.
+4. **The transcript is no longer spoken.** It duplicated the recording word
+   for word. It stays on the card as text.
+
+**What this costs, so it is not discovered later:** under a screen reader the
+radio timeline stops being hands-off — auto-advance announces the next memo
+and waits. That is the feed model's whole premise, given up under TalkBack. A
+test is named for it so it is not quietly undone. It also means that for
+screen-reader testers the radio and card-deck models are now closer together
+than they were, which the usability comparison has to account for.
+
+Not on hardware yet. The fix is about *when* sound starts, and the recording
+from the last session has no audio track, so the next device pass is what
+confirms it.
+
 ## Next step
 
-**Step 4: one voice at a time.** The shape of the fix, in the order it should
-land:
+**Run the device session again**, once #33 and #34 are merged and a fresh
+build is installed. Two things to listen for, in this order:
 
-1. **An arbiter in `:core` that both the narrator and the player go through.**
-   Nothing else fixes this at the root — every alternative is a guard in one
-   caller while the sibling callers keep colliding. When the narrator is about
-   to speak, the memo pauses; when the utterance finishes
-   (`UtteranceProgressListener.onDone`), it resumes. One owner of "who is
-   speaking", not three sources hoping.
-2. **Do not auto-play under a screen reader.** With touch exploration on, a
-   memo starting on its own guarantees a collision with the announcement that
-   just triggered it. Under TalkBack, playback becomes explicit.
-3. **Duck the memo while the user is exploring by touch.** Touch exploration
-   delivers hover events to the app, which is the only in-app signal that
-   TalkBack is about to speak. Duck on hover, restore shortly after the last
-   one. A heuristic, and it should be written down as one.
-4. **Document TalkBack's own "audio ducking" setting** for testers in the
-   meantime. Zero code, and it takes the edge off (2) and (3) for the next
-   session.
+1. **One voice at a time**, with TalkBack on and with it off — the deck, the
+   radio, and onboarding.
+2. **Whether waiting to press play is tolerable** on the radio timeline under
+   TalkBack, or whether it costs that feed model too much to be worth keeping
+   in the comparison. That is a judgement only a listener can make.
+
+Then latency against the under-100ms rule, which the first session did not
+measure.
 
 The prototype is feature-complete against `android/README.md`'s scope for this
 build, minus the two deliberate cuts (no DMs, no in-app moderator queue), and
