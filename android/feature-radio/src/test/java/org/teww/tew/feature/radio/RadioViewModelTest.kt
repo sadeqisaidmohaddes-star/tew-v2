@@ -48,7 +48,8 @@ class RadioViewModelTest {
     private fun viewModel(
         repo: InMemoryFeedRepository = InMemoryFeedRepository(latencyMs = 0),
         playback: FakePlaybackSession = FakePlaybackSession(),
-    ) = RadioViewModel(repo, playback) to playback
+        screenReader: Boolean = false,
+    ) = RadioViewModel(repo, playback, screenReaderActive = { screenReader }) to playback
 
     @Test
     fun `starting plays the first memo`() = runTest(dispatcher) {
@@ -136,6 +137,51 @@ class RadioViewModelTest {
         vm.skipCurrent(); advanceUntilIdle()
 
         assertEquals(2, playback.played.size)
+    }
+
+    @Test
+    fun `under a screen reader the first memo waits to be started`() = runTest(dispatcher) {
+        // TalkBack is announcing the memo. Starting it underneath that is what
+        // the 2026-08-16 device session heard, and Android gives no signal for
+        // when TalkBack has finished, so the feed waits to be asked.
+        val (vm, playback) = viewModel(screenReader = true)
+
+        vm.start()
+        advanceUntilIdle()
+
+        assertTrue("memo started over the screen reader", playback.played.isEmpty())
+        assertTrue(vm.uiState.value.announcement.contains("Press play"))
+    }
+
+    @Test
+    fun `under a screen reader auto-advance announces without playing`() = runTest(dispatcher) {
+        // The cost of the rule above, stated as a test so nobody "fixes" it by
+        // accident: this feed's hands-off listening is what gets given up under
+        // a screen reader. The memo is announced and waits.
+        val (vm, playback) = viewModel(screenReader = true)
+        vm.start(); advanceUntilIdle()
+        vm.togglePlayPause() // the person starts memo one
+        advanceUntilIdle()
+
+        playback.finishCurrent()
+        advanceUntilIdle()
+
+        assertEquals(1, vm.uiState.value.index)
+        assertEquals("memo two started on its own", 1, playback.played.size)
+        assertTrue(vm.uiState.value.announcement.contains("Press play"))
+    }
+
+    @Test
+    fun `the play button starts a memo that was never loaded`() = runTest(dispatcher) {
+        // Under a screen reader nothing is prepared, so play/pause has nothing
+        // to resume — it has to start the memo, or the button does nothing at
+        // all for the people this feed is for.
+        val (vm, playback) = viewModel(screenReader = true)
+        vm.start(); advanceUntilIdle()
+
+        vm.togglePlayPause()
+
+        assertEquals(listOf(sampleMemos().first().id), playback.played)
     }
 }
 

@@ -81,7 +81,14 @@ fun CardDeckScreen(
 
     // Narrate state changes for users who are not running a screen reader.
     // Narrator suppresses itself when TalkBack is on, so this never doubles up.
-    LaunchedEffect(state.announcement) { narrator.say(state.announcement) }
+    //
+    // The callback is what lets a memo start *after* its announcement instead
+    // of over the top of it. Under a screen reader the narrator says nothing
+    // and never calls back, which is exactly right: nothing then starts on its
+    // own, and the person presses play.
+    LaunchedEffect(state.announcement) {
+        narrator.say(state.announcement) { viewModel.announcementSpoken() }
+    }
 
     // Media buttons and voice funnel into the same command entry point the
     // buttons and accessibility actions use. Released on dispose so a command
@@ -116,11 +123,21 @@ fun CardDeckScreen(
 
     val memoId = state.current?.id
 
+    // Under a screen reader nothing starts on its own, so for this card the
+    // control is "Play" until it has been used and "Again" afterwards. Saying
+    // "again" for something that has not played yet is a small lie, and it is
+    // the kind that makes a person think they missed something.
+    val playLabel = if (memoId != null && playback.memoId == memoId) "Again" else "Play"
+
     val actions = buildList {
         add(CustomAccessibilityAction("Like this memo and move on") { viewModel.like(); true })
         add(CustomAccessibilityAction("Skip this memo") { viewModel.skip(); true })
         add(CustomAccessibilityAction("Play or pause") { viewModel.togglePlayPause(); true })
-        add(CustomAccessibilityAction("Play this memo again") { viewModel.playCurrent(); true })
+        add(
+            CustomAccessibilityAction(
+                if (playLabel == "Again") "Play this memo again" else "Play this memo",
+            ) { viewModel.playCurrent(); true },
+        )
         voice?.let { v -> add(CustomAccessibilityAction("Speak a command") { v.startListening(); true }) }
         memoId?.let {
             add(CustomAccessibilityAction("Reply with a voice memo") { onComment(it); true })
@@ -189,7 +206,7 @@ fun CardDeckScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = viewModel::like) { Text("Like") }
             Button(onClick = viewModel::skip) { Text("Skip") }
-            Button(onClick = viewModel::playCurrent) { Text("Again") }
+            Button(onClick = viewModel::playCurrent) { Text(playLabel) }
         }
 
         if (voice != null) {

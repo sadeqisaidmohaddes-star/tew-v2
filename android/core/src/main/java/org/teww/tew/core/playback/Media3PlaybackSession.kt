@@ -24,10 +24,17 @@ import kotlinx.coroutines.flow.asStateFlow
  *
  * Two details are deliberate rather than incidental:
  *
- * - **Audio focus is requested and handled.** TalkBack is speech, and a memo
- *   playing over the screen reader makes both unintelligible. Letting Media3
- *   manage focus means announcements duck the memo instead of colliding with
- *   it, which matters more here than in an ordinary media app.
+ * - **Audio focus is requested and handled**, which makes this player behave
+ *   when another *app* wants the speaker — a call, a navigation prompt.
+ *
+ *   It does **not** solve talking over the screen reader, and an earlier
+ *   version of this comment claimed it did. `handleAudioFocus = true` makes
+ *   this player react when something else takes focus; TalkBack does not take
+ *   focus unless the user has switched on its own audio-ducking setting, and
+ *   the app's own narrator requests none at all. So both of them speak
+ *   straight over a playing memo, which is what the 2026-08-16 device session
+ *   heard. The fix lives in the feed view models — a memo starts after the
+ *   announcement, and under a screen reader only when asked. See `STATE.md`.
  * - **Position updates are polled, not pushed.** ExoPlayer has no continuous
  *   position callback, and a progress ticker is what lets a screen say how far
  *   through a memo it is. Polling stops whenever nothing is playing so it
