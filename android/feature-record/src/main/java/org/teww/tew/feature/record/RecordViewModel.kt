@@ -19,7 +19,14 @@ data class RecordUiState(
     val recording: RecordingState = RecordingState.Idle,
     val sending: Boolean = false,
     val sent: Boolean = false,
-    val announcement: String = "",
+    /**
+     * What the recorder is doing. Printed and announced — it changes on a state
+     * transition and at no other time, which is what lets the screen mark it
+     * assertive without it interrupting itself. See [spokenStatus].
+     */
+    val spoken: String = "",
+    /** The elapsed count. Printed once a second, announced never. */
+    val elapsed: String = "",
 )
 
 /**
@@ -53,7 +60,8 @@ class RecordViewModel(
             recorder.state.collect { state ->
                 _uiState.value = _uiState.value.copy(
                     recording = state,
-                    announcement = recordingStatus(state, isReply),
+                    spoken = spokenStatus(state, isReply),
+                    elapsed = recordingElapsed(state),
                 )
             }
         }
@@ -63,9 +71,12 @@ class RecordViewModel(
         recorder.start(nowMs())
         ticker?.cancel()
         ticker = viewModelScope.launch {
-            // Drives the spoken elapsed time. A second is the right grain:
-            // faster would interrupt a screen reader mid-word, slower would
-            // leave long silences where the user cannot tell it is still on.
+            // Drives the *printed* elapsed count. A second is the right grain
+            // for something being watched, and it is deliberately not the grain
+            // of anything being spoken: an earlier version of this comment
+            // reasoned about interrupting a screen reader mid-word while the
+            // state it updates was wired to an assertive live region, so it
+            // interrupted once a second for the whole memo. See spokenStatus.
             while (recorder.isRecording) {
                 delay(TICK_MS)
                 recorder.tick(nowMs())
@@ -97,7 +108,8 @@ class RecordViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 sending = true,
-                announcement = "Sending your ${if (isReply) "reply" else "memo"}.",
+                spoken = "Sending your ${if (isReply) "reply" else "memo"}.",
+                elapsed = "",
             )
 
             val result = if (replyToMemoId != null) {
@@ -117,24 +129,26 @@ class RecordViewModel(
             }
 
             _uiState.value = when (result) {
-                is TewResult.Ok -> _uiState.value.copy(
-                    sending = false,
-                    sent = true,
-                    announcement = if (isReply) {
+                is TewResult.Ok -> {
+                    val done = if (isReply) {
                         "Reply sent."
                     } else {
                         "Memo posted. Other people will hear it in their feed."
-                    },
-                )
+                    }
+                    _uiState.value.copy(sending = false, sent = true, spoken = done)
+                }
 
-                is TewResult.Failure -> _uiState.value.copy(
-                    // Deliberately not cleared: the recording is still on disk
-                    // and still sendable. Losing someone's memo because the
-                    // network blipped would be unforgivable on a connection
-                    // this app is explicitly designed for.
-                    sending = false,
-                    announcement = "${result.spoken} Your recording is still here — try sending again.",
-                )
+                is TewResult.Failure -> {
+                    val failed = "${result.spoken} Your recording is still here — try sending again."
+                    _uiState.value.copy(
+                        // Deliberately not cleared: the recording is still on disk
+                        // and still sendable. Losing someone's memo because the
+                        // network blipped would be unforgivable on a connection
+                        // this app is explicitly designed for.
+                        sending = false,
+                        spoken = failed,
+                    )
+                }
             }
         }
     }
