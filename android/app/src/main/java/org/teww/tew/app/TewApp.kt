@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.LocalActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
+import org.teww.tew.app.ui.TewTheme
 import org.teww.tew.core.accessibility.screenReaderActive
 import org.teww.tew.core.auth.AuthState
 import org.teww.tew.core.model.Memo
@@ -71,7 +72,7 @@ private sealed interface Destination {
 fun TewApp(container: TewContainer) {
     val authState by container.authSession.state.collectAsStateWithLifecycle()
 
-    MaterialTheme {
+    TewTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
             when (authState) {
                 is AuthState.SignedIn -> SignedIn(container)
@@ -133,16 +134,6 @@ private fun SignedIn(container: TewContainer) {
             )
 
             is Destination.Report -> ReportScreen(
-                memo = Memo(
-                    id = current.memoId,
-                    authorUsername = "this memo's author",
-                    audioUrl = "",
-                    durationMs = 0,
-                    postedAtEpochSeconds = 0,
-                    transcript = null,
-                    likedByMe = false,
-                    moderation = org.teww.tew.core.model.Moderation.visible,
-                ),
                 onReport = { reason ->
                     account.report(current.memoId, reason) { spoken ->
                         reportStatus = spoken

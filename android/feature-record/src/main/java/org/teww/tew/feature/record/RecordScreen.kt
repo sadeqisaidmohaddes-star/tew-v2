@@ -116,11 +116,24 @@ fun RecordScreen(
             modifier = Modifier.semantics { heading() },
         )
 
+        // Two nodes on purpose, and only one of them is a live region. This line
+        // changes when the recorder changes state; the count below it changes
+        // every second. An assertive region re-announces on every change and
+        // interrupts what it was saying, so a once-a-second string wired to one
+        // makes TalkBack cut itself off for the length of the memo — which is
+        // what this screen shipped with until 2026-08-16.
         Text(
-            text = state.announcement,
+            text = state.spoken,
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
         )
+
+        if (state.elapsed.isNotBlank()) {
+            Text(
+                text = state.elapsed,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
 
         if (!hasPermission) {
             Text(

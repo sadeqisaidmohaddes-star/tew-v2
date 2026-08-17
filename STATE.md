@@ -1,6 +1,6 @@
 # STATE
 
-Last updated: 2026-08-16
+Last updated: 2026-08-17
 
 ## Where things actually are
 
@@ -198,16 +198,25 @@ Worth knowing before changing anything:
    2026-08-16 session ran a newer build off `dev`.
 2. ~~**Run the device session.**~~ — done 2026-08-16.
 3. ~~**Record what was found**~~ — done, above.
-4. **Fix the clashing voices.** New, and it comes before promotion. This app
-   is voice-first for blind users; three voices at once is not a rough edge,
-   it is the product not working. **Written and on PR #34** — see below — but
-   not yet heard on a phone, which is what actually settles it.
-5. **Then promote `dev` → `prod`** and tag `v0.1.0`.
+4. ~~**Fix the clashing voices.**~~ — merged 2026-08-16, PR #34. Not yet heard
+   on a phone, which is what actually settles it.
+5. ~~**Promote `dev` → `prod`.**~~ — merged 2026-08-16, PR #35. The first
+   promotion this repo has had; `prod` held nothing but governance docs until
+   now. Per-memo delete (PR #36) landed just before it, so `prod` and `dev`
+   are identical.
+6. **Tag `v0.1.0`** so there is a downloadable APK to test.
+   ```
+   git fetch origin && git tag v0.1.0 origin/prod && git push origin v0.1.0
+   ```
+7. **The second device session.** See "Next step".
 
-Promotion is deliberately last. `GITHUB_WORKFLOW.md` requires `dev` to be
-stable — *"meaning the thing you just merged actually works, not just that it
-built"*. It has now been seen working, with one bug that goes to the heart of
-what the app is for.
+Promotion was meant to be last, and it was taken one step early on purpose.
+`GITHUB_WORKFLOW.md` asks that `dev` be stable — *"meaning the thing you just
+merged actually works, not just that it built"* — and the voice fix has only
+ever been unit-tested. Taha's call, made so that a versioned build exists to
+test against rather than testing an untagged branch. Worth remembering if
+`v0.1.0` turns out to need a `v0.1.1` quickly: that is the expected shape of
+this, not a surprise.
 
 ## Step 4, one voice at a time — the fix, on PR #34
 
@@ -241,21 +250,106 @@ Not on hardware yet. The fix is about *when* sound starts, and the recording
 from the last session has no audio track, so the next device pass is what
 confirms it.
 
+## The visual design — new, 2026-08-17
+
+The app had **no theme at all** until today. `TewApp` wrapped everything in
+`MaterialTheme {}` with an empty argument list, so every colour and every type
+size in all six modules resolved to Compose's baseline. The violet in the
+device recording was an absence, not a brand — and Material's baseline was on
+the design run's own ban list as the category default, so the app was wearing
+the one thing the redesign was forbidden to produce.
+
+`runs/tew-android/` holds the inter.face run that fixed it: the six-row brief,
+the measured current state, `DIRECTION.md`, six coded comps, and `SKIPS.md`.
+
+**The direction: the record, set as a large-print edition.** An official report
+— one column, the speaker named, entries timed, corrections printed rather than
+hidden — at the type size a low-vision reader actually needs. The two parents
+fight, and that is the point: a record is dense and small, a large-print edition
+has no structural apparatus, and forcing one through the other leaves no margin,
+so the marginal apparatus moves into the reading line. A screen reader already
+reads linearly, so the visual design and the spoken design become one object.
+
+- **Landed in PR #38:** cream `#FDF3EF` on ink `#191210` at 16.91:1, one rubric
+  red `#A12721` used only where a record has been corrected, withheld or closed.
+  Dark is a *reversed edition* rather than an inverted page — every weight drops
+  50 units, because white on near-black bleeds. Atkinson Hyperlegible Next,
+  bundled, 112 KB, SIL OFL 1.1, chosen because it disambiguates I/l/1 and b/d by
+  drawing them differently rather than by weight. 20 sp body floor against
+  RNIB's 16–18 pt large-print standard.
+- **Landed in PR #39:** onboarding rebuilt as five leaves of a preface — the
+  step counter moved into a running head, one idea per leaf at 34 sp, actions as
+  lines with weight and a hairline instead of filled buttons, and `Next leaf` /
+  `Previous leaf` as custom accessibility actions. That last one closed a
+  promise the product had been making and not keeping: leaf 3's own copy says
+  every button is also in the screen reader's actions menu, and onboarding had
+  none.
+
+**Both gates of the design run were skipped** at Taha's instruction, so nobody
+chose this concept — the agent that derived it did. The two rejected concepts
+and the reasons they lost are in `DIRECTION.md`. `TRANSLATE.md` rows 3 and 5 are
+marked ASSUMED. Row 3 is the row every concept pushes against; if it is wrong,
+they all are.
+
+**The named risk, worth re-reading before the next session:** a record is one
+bad execution from the assistive-tech-institutional lane the run explicitly
+banned. The cheapest test is to show one person who has never seen the app the
+radio screen and ask what it is.
+
+**What is themed but not yet redesigned.** PR #38 gave every screen the palette,
+scale and family; PR #39 rebuilt one screen to the design. Radio, card deck,
+record, profile and sign-in are re-skinned, not relaid-out — `DIRECTION.md` §7's
+front matter, running head, entry rules and closing surface are specified and
+unbuilt.
+
+**Nothing has been rendered.** No image backend was available to the design run,
+so every contrast ratio in `DIRECTION.md` is computed rather than observed. The
+next device session is the first time any of it becomes pixels.
+
+## Two bugs fixed on the way, both of the same family
+
+Found by reading the code for the theme, both verified before fixing:
+
+- **TalkBack interrupted itself once a second during every recording.**
+  `RecordViewModel` rewrote its status on a one-second ticker while
+  `RecordScreen` marked that same text an assertive live region, and assertive
+  re-announces on every change. Status and elapsed count are now two nodes and
+  only one is a live region. Same family as the clashing voices — something
+  speaking over something else because nobody owned the question.
+- **`ReportScreen` printed *"By this memo's author."*** to real users. Its
+  `memo` parameter existed for that one line and navigation only ever carried an
+  id, so the parameter and the fake `Memo` built to satisfy it are both gone.
+
 ## Next step
 
-**Run the device session again**, once #33 and #34 are merged and a fresh
-build is installed. Two things to listen for, in this order:
+**Promote and tag.** `prod` is behind again — the voice fix, per-memo delete,
+the theme and the onboarding all landed on `dev` after the first promotion, and
+**there is still no `v0.1.0` tag**, so the only downloadable build is the
+2026-08-09 prerelease that predates every one of them.
 
-1. **One voice at a time**, with TalkBack on and with it off — the deck, the
-   radio, and onboarding.
+```
+git fetch origin && git tag v0.1.0 origin/prod && git push origin v0.1.0
+```
+
+**Then the second device session**, on that build. What to listen and look for:
+
+1. **One voice at a time**, TalkBack on and off — the deck, the radio, and
+   onboarding. Still the reason the build exists.
 2. **Whether waiting to press play is tolerable** on the radio timeline under
-   TalkBack, or whether it costs that feed model too much to be worth keeping
-   in the comparison. That is a judgement only a listener can make.
+   TalkBack, or whether it costs that feed model too much to keep in the
+   comparison.
+3. **The recording screen**, which should no longer interrupt itself.
+4. **The design, seen for the first time.** Whether it reads as deliberate or as
+   institutional, at default text size and at 200%.
+5. **The delete confirmation** under a screen reader — whether "Delete" and
+   "Keep it" are distinguishable heard rather than read.
 
-Then latency against the under-100ms rule, which the first session did not
-measure.
+Then latency against the under-100ms rule, which no session has measured.
+
+And write what is found back into this file. The first session's results only
+survived because that happened.
 
 The prototype is feature-complete against `android/README.md`'s scope for this
-build, minus the two deliberate cuts (no DMs, no in-app moderator queue), and
-it has now had contact with a real device. What it has not had is contact with
-a real backend: the 2026-08-16 session ran on the built-in sample memos.
+build, minus the two deliberate cuts (no DMs, no in-app moderator queue). What
+it has not had is contact with a real backend: every session so far has run on
+the built-in sample memos.
