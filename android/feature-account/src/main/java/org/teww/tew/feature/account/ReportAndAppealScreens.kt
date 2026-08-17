@@ -37,7 +37,6 @@ import org.teww.tew.core.model.ReportReason
  */
 @Composable
 fun ReportScreen(
-    memo: Memo,
     onReport: (ReportReason) -> Unit,
     onCancel: () -> Unit,
     status: String,
@@ -56,8 +55,14 @@ fun ReportScreen(
             modifier = Modifier.semantics { heading() },
         )
 
+        // This deliberately does not name the author. It used to, and the only
+        // thing it ever said was "By this memo's author." — navigation carries a
+        // memo id and nothing else, so the name was a placeholder that reached
+        // real users. Naming them properly means plumbing the author through
+        // navigation to tell someone whose memo they are reporting one screen
+        // after they chose to report it, which they already know.
         Text(
-            text = "By ${memo.authorUsername}. Choose what is wrong with it.",
+            text = "Choose what is wrong with it.",
             style = MaterialTheme.typography.bodyMedium,
         )
 

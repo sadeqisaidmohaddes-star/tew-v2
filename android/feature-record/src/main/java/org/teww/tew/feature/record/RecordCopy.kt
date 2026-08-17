@@ -35,21 +35,38 @@ fun spokenDuration(millis: Long): String {
  */
 const val LONG_MEMO_THRESHOLD_MS: Long = 90_000
 
-/** The single spoken line describing what the recorder is doing. */
-fun recordingStatus(state: RecordingState, isReply: Boolean): String {
+/**
+ * What the recorder is doing. Printed, and announced.
+ *
+ * ## Why the elapsed count is not in here
+ *
+ * It used to be, and it was a bug. The screen marks this line `assertive`, which
+ * is right — someone speaking into a phone has to be told the moment it stops
+ * listening. But the count ticked once a second, an assertive live region
+ * re-announces on every change, and re-announcing **interrupts whatever it was
+ * already saying**. As shipped, TalkBack cut itself off once a second for the
+ * whole length of a memo.
+ *
+ * So this string changes when the recorder changes state and at no other time.
+ * The count lives in [recordingElapsed], printed beside it and announced by
+ * nothing. Nothing is lost — it is still on screen and still reachable on
+ * demand. What it stops doing is interrupting.
+ *
+ * The 90-second nudge stays here on purpose: it is the one thing during a
+ * recording worth interrupting for, and it fires once rather than every tick.
+ */
+fun spokenStatus(state: RecordingState, isReply: Boolean): String {
     val what = if (isReply) "reply" else "memo"
     return when (state) {
         is RecordingState.Idle ->
             "Ready. Press Start recording when you want to speak your $what."
 
-        is RecordingState.Recording -> {
-            val base = "Recording. ${spokenDuration(state.elapsedMs)} so far."
+        is RecordingState.Recording ->
             if (state.elapsedMs >= LONG_MEMO_THRESHOLD_MS) {
-                "$base This is getting long — short memos are easier to listen to."
+                "Recording. This is getting long — short memos are easier to listen to."
             } else {
-                base
+                "Recording."
             }
-        }
 
         is RecordingState.Finished ->
             "Recorded ${spokenDuration(state.durationMs)}. " +
@@ -57,6 +74,17 @@ fun recordingStatus(state: RecordingState, isReply: Boolean): String {
 
         is RecordingState.Failed -> state.spoken
     }
+}
+
+/**
+ * The elapsed count, on its own, for printing beside [spokenStatus].
+ *
+ * Blank when nothing is being recorded, so the line simply is not there rather
+ * than sitting empty. Never announced — see [spokenStatus].
+ */
+fun recordingElapsed(state: RecordingState): String = when (state) {
+    is RecordingState.Recording -> "${spokenDuration(state.elapsedMs)} so far."
+    else -> ""
 }
 
 /** Whether the send control should be offered. */

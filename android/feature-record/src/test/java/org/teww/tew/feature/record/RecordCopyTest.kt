@@ -32,19 +32,39 @@ class RecordCopyTest {
     }
 
     @Test
-    fun `recording state always states the elapsed time`() {
+    fun `recording is stated, and the elapsed time is printed beside it`() {
         // The single most important thing this screen says. Without a running
-        // number, a user cannot tell a live recorder from a frozen one.
-        val status = recordingStatus(RecordingState.Recording(7_000), isReply = false)
+        // number, a user cannot tell a live recorder from a frozen one — but
+        // the number is printed, not announced, so the two live apart.
+        val spoken = spokenStatus(RecordingState.Recording(7_000), isReply = false)
+        val printed = recordingElapsed(RecordingState.Recording(7_000))
 
-        assertTrue(status.contains("Recording"))
-        assertTrue(status.contains("7 seconds"))
+        assertTrue(spoken.contains("Recording"))
+        assertTrue(printed.contains("7 seconds"))
+    }
+
+    @Test
+    fun `the spoken line carries no count, so a live region cannot loop on it`() {
+        // The bug this split exists to fix: an assertive live region re-announces
+        // on every change and interrupts itself. If the spoken string ever picks
+        // the count back up, TalkBack cuts itself off once a second for the
+        // whole length of the memo.
+        val first = spokenStatus(RecordingState.Recording(7_000), isReply = false)
+        val later = spokenStatus(RecordingState.Recording(8_000), isReply = false)
+
+        assertEquals(first, later)
+    }
+
+    @Test
+    fun `the printed count is absent when nothing is recording`() {
+        assertEquals("", recordingElapsed(RecordingState.Idle))
+        assertEquals("", recordingElapsed(RecordingState.Finished(File("x"), 1_000)))
     }
 
     @Test
     fun `a long memo is nudged, not cut off`() {
-        val long = recordingStatus(RecordingState.Recording(120_000), isReply = false)
-        val short = recordingStatus(RecordingState.Recording(5_000), isReply = false)
+        val long = spokenStatus(RecordingState.Recording(120_000), isReply = false)
+        val short = spokenStatus(RecordingState.Recording(5_000), isReply = false)
 
         assertTrue(long.contains("getting long"))
         assertFalse(short.contains("getting long"))
@@ -54,20 +74,20 @@ class RecordCopyTest {
 
     @Test
     fun `idle explains what to do next`() {
-        val status = recordingStatus(RecordingState.Idle, isReply = false)
+        val status = spokenStatus(RecordingState.Idle, isReply = false)
 
         assertTrue(status.contains("Start recording"))
     }
 
     @Test
     fun `reply and memo are named differently`() {
-        assertTrue(recordingStatus(RecordingState.Idle, isReply = true).contains("reply"))
-        assertTrue(recordingStatus(RecordingState.Idle, isReply = false).contains("memo"))
+        assertTrue(spokenStatus(RecordingState.Idle, isReply = true).contains("reply"))
+        assertTrue(spokenStatus(RecordingState.Idle, isReply = false).contains("memo"))
     }
 
     @Test
     fun `finished offers all three ways forward`() {
-        val status = recordingStatus(
+        val status = spokenStatus(
             RecordingState.Finished(File("x.m4a"), 12_000),
             isReply = false,
         )
@@ -80,7 +100,7 @@ class RecordCopyTest {
 
     @Test
     fun `a failure speaks its own reason`() {
-        val status = recordingStatus(
+        val status = spokenStatus(
             RecordingState.Failed("Recording could not start."),
             isReply = false,
         )
@@ -107,7 +127,7 @@ class RecordCopyTest {
         )
 
         states.forEach {
-            assertTrue("$it was silent", recordingStatus(it, false).isNotBlank())
+            assertTrue("$it was silent", spokenStatus(it, false).isNotBlank())
         }
     }
 }
