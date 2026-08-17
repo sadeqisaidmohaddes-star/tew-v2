@@ -56,3 +56,30 @@ from the recoil probe, so the bans are reasoned rather than observed.
 cheapest row in this run to correct and the most expensive to leave standing.
 Both rows are marked **ASSUMED** in `TRANSLATE.md` so they read as questions
 rather than facts.
+
+## 2026-08-16 · Loop 1 closed — the rows the conductor could not append
+
+`loops/01-direction.md` assigns these to the session holding the gate rather
+than to the phase agent, so the conductor listed them and this session writes
+them down.
+
+- **Gate A was not held.** No human chose the concept. *record* was selected by
+  the agent that derived it, with the two rejected concepts recorded in
+  `DIRECTION.md` so the comparison is at least legible after the fact.
+- **Only one concept was rendered.** Six comps exist for *record*; *noticeboard*
+  and *handset* have prose and no surfaces. There is nothing to compare the set
+  against, which is the specific thing Gate A existed to make possible.
+- **The family pass has no fresh judge.** It is entirely self-judged, and the
+  loop's own text calls that the weakest of its three distinctness tests.
+- **N is below the tool-shaped floor.** The empty, denied and conflict states
+  get no comp of their own.
+- **`board.html` was not built** — nothing to present, since no human was
+  attending a gate.
+- **Gate B is skipped in advance**, which leaves `ACCESS.md` §13 row 19's
+  semantics patterns costed by nobody.
+- **Image mode was unavailable, not declined.** No image MCP server is connected
+  in this environment; all six workers reported it independently. The comps are
+  coded specifications, so **every contrast ratio in `DIRECTION.md` is computed
+  rather than observed.** Nothing has been rendered. First render is at build,
+  and that is the first opportunity for any of these numbers to be wrong in a
+  way a person would notice.
