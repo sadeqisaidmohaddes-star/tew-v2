@@ -320,36 +320,78 @@ Found by reading the code for the theme, both verified before fixing:
   `memo` parameter existed for that one line and navigation only ever carried an
   id, so the parameter and the fake `Memo` built to satisfy it are both gone.
 
+## v0.1.0 is out — 2026-08-17
+
+**https://github.com/sadeqisaidmohaddes-star/tew-v2/releases/tag/v0.1.0** —
+`tew-v0.1.0.apk`, 16.4 MB, downloadable with no GitHub sign-in and not wrapped
+in a zip, which is what matters when the installer is using a screen reader on a
+phone.
+
+Cut from `prod` after the second promotion (PR #41), so `prod` and `dev` are
+level. Marked **prerelease**, which is the honest label: nothing in it has been
+seen running.
+
+Two things that blocked earlier sessions did **not** recur, worth recording so
+nobody plans around them again: `gh pr merge` went through, and the tag push did
+not 403. The workflow's own note about Claude Code being unable to cut releases
+is out of date.
+
+The APK is debug-signed on purpose — the release keystore is still undecided and
+`assembleRelease` would produce something unsigned that will not install.
+Signature verified with `apksigner`: `CN=TEW Debug, OU=Third Eye Worldwide`.
+
 ## Next step
 
-**Promote and tag.** `prod` is behind again — the voice fix, per-memo delete,
-the theme and the onboarding all landed on `dev` after the first promotion, and
-**there is still no `v0.1.0` tag**, so the only downloadable build is the
-2026-08-09 prerelease that predates every one of them.
+**The second device session.** Everything is now waiting on a phone; nothing is
+blocked on code. This is also the first time any of the visual design becomes
+pixels — every contrast ratio in `DIRECTION.md` was computed and none of it has
+ever been rendered, so anything that reads wrong is new information rather than
+a regression.
 
-```
-git fetch origin && git tag v0.1.0 origin/prod && git push origin v0.1.0
-```
-
-**Then the second device session**, on that build. What to listen and look for:
+In rough order of what matters:
 
 1. **One voice at a time**, TalkBack on and off — the deck, the radio, and
-   onboarding. Still the reason the build exists.
+   onboarding. Still the reason this build exists.
 2. **Whether waiting to press play is tolerable** on the radio timeline under
    TalkBack, or whether it costs that feed model too much to keep in the
-   comparison.
-3. **The recording screen**, which should no longer interrupt itself.
-4. **The design, seen for the first time.** Whether it reads as deliberate or as
-   institutional, at default text size and at 200%.
+   comparison. A judgement only a listener can make, and the one most likely to
+   send the design back a step.
+3. **The recording screen**, which should now let TalkBack finish a sentence.
+4. **The design**, at default text size and at 200%. Whether it reads as
+   deliberate or as institutional — the named risk of the record concept.
 5. **The delete confirmation** under a screen reader — whether "Delete" and
    "Keep it" are distinguishable heard rather than read.
 
-Then latency against the under-100ms rule, which no session has measured.
+Then latency against the under-100ms rule, which no session has measured, and
+the gesture spike in `feature-carddeck/SPIKE.md`, which has never been run.
 
-And write what is found back into this file. The first session's results only
-survived because that happened.
+**Write what is found back into this file.** The first session's results only
+survived because that happened, and `HANDLING_PROTOCOLS.md` is right that an
+unwritten result does not outlive the session it was found in.
+
+## After that, the road to something presentable to a team
+
+Taha's ordering, 2026-08-17: **tier 1 is deliberately skipped for now** — this
+is the test version, and real auth and hosting are not part of it.
+
+**Still unbuilt, in the order that unblocks the most:**
+
+- **Real sign-in.** `StubAuthSession` gives every tester the same identity —
+  `stub-user`, "test-user". Two people on the same server are one account, so a
+  multi-person demo is not possible today. This is the gate, not a polish item.
+- **The backend actually hosted.** `DEPLOY.md` says it outright: it has never
+  been run on the box.
+- **A server address baked into the build**, so a tester does not have to type a
+  URL into a text field with a screen reader running.
+- **ASR transcripts.** `addMemo` returns `transcript` NULL, so every memo a real
+  person posts has no text at all. Seeded memos have transcripts, which means
+  this looks fine right up until somebody posts.
+- **Rate limiting**, before any public URL exists.
+- **Account deletion**, the half of the retention promise with no screen.
+- **The remaining five surfaces relaid out** — radio, card deck, record, profile
+  and sign-in are themed but not redesigned. `DIRECTION.md` §7 specifies them.
 
 The prototype is feature-complete against `android/README.md`'s scope for this
-build, minus the two deliberate cuts (no DMs, no in-app moderator queue). What
-it has not had is contact with a real backend: every session so far has run on
-the built-in sample memos.
+build, minus the two deliberate cuts (no DMs, no in-app moderator queue). What it
+has never had is contact with a real backend: every session so far has run on the
+built-in sample memos.
